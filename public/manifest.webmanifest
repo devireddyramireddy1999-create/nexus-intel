@@ -1,0 +1,18 @@
+{
+  "name": "NEXUS Intel",
+  "short_name": "NEXUS",
+  "description": "A futuristic personal intelligence dashboard for daily briefings.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030711",
+  "theme_color": "#030711",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/nexus-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
