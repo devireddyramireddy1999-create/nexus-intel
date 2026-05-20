@@ -42,9 +42,9 @@ export function CryptoPage() {
         title="Crypto Radar"
         description="Spot flow, risk appetite, leverage discipline, and protocol-level momentum for the crypto sleeve."
         icon={Coins}
-        badge={loading ? "Loading" : meta?.fallback ? "Fallback on-chain" : "API on-chain"}
+        badge={loading ? "Loading" : meta?.source === "coingecko" && !meta.fallback ? "Live CoinGecko" : "Fallback on-chain"}
       />
-      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">Crypto backend unavailable. Showing local fallback.</p> : null}
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">{getCryptoErrorMessage(meta)}</p> : null}
       <div className="grid gap-5 lg:grid-cols-3">
         {cryptoAssets.map((asset) => (
           <Card key={asset.symbol}>
@@ -108,4 +108,12 @@ export function CryptoPage() {
       </div>
     </>
   );
+}
+
+function getCryptoErrorMessage(meta: ApiMeta) {
+  if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
+    return "Crypto backend unavailable. Showing local fallback.";
+  }
+
+  return "Live crypto feed unavailable. Showing local fallback.";
 }

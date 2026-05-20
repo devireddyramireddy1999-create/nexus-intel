@@ -102,7 +102,7 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
           </div>
           <div className="rounded-md border border-white/10 bg-black/20 p-2">
             <p className="text-muted-foreground">Sources</p>
-            <p className="font-semibold text-foreground">Mock</p>
+            <p className="font-semibold text-foreground">Mixed</p>
           </div>
         </div>
       </div>

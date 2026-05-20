@@ -24,7 +24,7 @@ export type ApiMeta = {
   cachedAt: string;
   expiresAt?: string;
   fallback: boolean;
-  source: "api" | "mock";
+  source: "api" | "coingecko" | "mock";
   ttlMs?: number;
   error?: string;
 };
@@ -58,6 +58,8 @@ type ApiEnvelope<T> = {
   data: T;
   meta: ApiMeta;
 };
+
+const backendOrigin = "http://localhost:8787";
 
 const fallbackMeta: ApiMeta = {
   cached: false,
@@ -104,12 +106,23 @@ async function fetchWithFallback<T>(path: string, fallback: () => T): Promise<Ap
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+  const response = await fetch(resolveApiUrl(path), init);
   if (!response.ok) {
     throw new Error(`Backend request failed: ${response.status}`);
   }
 
   return response.json() as Promise<T>;
+}
+
+function resolveApiUrl(path: string) {
+  if (!path.startsWith("/api")) return path;
+  if (typeof window === "undefined") return path;
+  if (window.location.port === "5173") return path;
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return `${backendOrigin}${path}`;
+  }
+
+  return path;
 }
 
 function buildMarketsFallback(): MarketsApiData {

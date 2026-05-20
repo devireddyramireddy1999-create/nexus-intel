@@ -6,22 +6,24 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { marketAssets } from "@/data/mockData";
 import { cn, formatSigned } from "@/lib/utils";
-import { getMarketsData, type ApiMeta } from "@/services/backendApi";
+import { getCryptoData, getMarketsData, type ApiMeta } from "@/services/backendApi";
 import type { MarketAsset } from "@/types/intel";
 
 export function MarketSnapshot() {
   const [assets, setAssets] = useState<MarketAsset[]>(marketAssets);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [marketMeta, setMarketMeta] = useState<ApiMeta | null>(null);
+  const [cryptoMeta, setCryptoMeta] = useState<ApiMeta | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    getMarketsData()
-      .then((response) => {
+    Promise.all([getMarketsData(), getCryptoData()])
+      .then(([marketResponse, cryptoResponse]) => {
         if (!active) return;
-        setAssets(response.data.assets);
-        setMeta(response.meta);
+        setAssets(mergeLiveCryptoAssets(marketResponse.data.assets, cryptoResponse.data.assets));
+        setMarketMeta(marketResponse.meta);
+        setCryptoMeta(cryptoResponse.meta);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -39,11 +41,12 @@ export function MarketSnapshot() {
           <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Market Snapshot</p>
           <h2 className="mt-1 break-words text-xl font-semibold text-foreground">Cross-Asset Pulse</h2>
         </div>
-        <Badge variant={meta?.fallback ? "warning" : "secondary"}>
-          {loading ? "Loading" : meta?.fallback ? "Fallback feed" : "API feed"}
+        <Badge variant={cryptoMeta?.fallback ? "warning" : isLiveCrypto(cryptoMeta) ? "success" : "secondary"}>
+          {loading ? "Loading" : getSnapshotLabel(cryptoMeta)}
         </Badge>
       </div>
-      {meta?.error ? <p className="mb-3 text-xs text-nexus-ember">Backend unavailable. Showing local market fallback.</p> : null}
+      {marketMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">Markets backend unavailable. Showing local market fallback.</p> : null}
+      {cryptoMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getCryptoErrorMessage(cryptoMeta)}</p> : null}
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {assets.map((asset, index) => {
           const positive = asset.change >= 0;
@@ -88,4 +91,27 @@ export function MarketSnapshot() {
       </div>
     </section>
   );
+}
+
+function mergeLiveCryptoAssets(marketAssetsSnapshot: MarketAsset[], cryptoAssets: MarketAsset[]) {
+  const cryptoBySymbol = new Map(cryptoAssets.map((asset) => [asset.symbol, asset]));
+  return marketAssetsSnapshot.map((asset) => cryptoBySymbol.get(asset.symbol) ?? asset);
+}
+
+function isLiveCrypto(meta: ApiMeta | null) {
+  return meta?.source === "coingecko" && meta.fallback === false;
+}
+
+function getSnapshotLabel(meta: ApiMeta | null) {
+  if (isLiveCrypto(meta)) return "Mixed: live crypto + mock markets";
+  if (meta?.fallback) return "Fallback: mock crypto + mock markets";
+  return "Mixed feed";
+}
+
+function getCryptoErrorMessage(meta: ApiMeta) {
+  if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
+    return "Crypto backend unavailable. Showing mock crypto fallback.";
+  }
+
+  return "Live crypto feed unavailable. Showing mock crypto fallback.";
 }
