@@ -46,9 +46,9 @@ export function MarketsPage() {
         title="Cross-Asset Market Console"
         description="Index momentum, commodity pressure, FX stability, and sector heat scored into a single operating view."
         icon={ChartCandlestick}
-        badge={loading ? "Loading" : meta?.fallback ? "Fallback prices" : "API prices"}
+        badge={loading ? "Loading" : isLiveMarkets(meta) ? "Live Finnhub proxies" : "Fallback prices"}
       />
-      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">Markets backend unavailable. Showing local fallback.</p> : null}
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">{getMarketErrorMessage(meta)}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
         <Card>
           <CardHeader>
@@ -145,4 +145,16 @@ export function MarketsPage() {
       </Card>
     </>
   );
+}
+
+function isLiveMarkets(meta: ApiMeta | null) {
+  return meta?.source === "finnhub" && meta.fallback === false;
+}
+
+function getMarketErrorMessage(meta: ApiMeta) {
+  if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
+    return "Markets backend unavailable. Showing local fallback.";
+  }
+
+  return "Live market proxy feed unavailable. Showing local fallback.";
 }

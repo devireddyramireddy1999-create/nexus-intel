@@ -24,7 +24,7 @@ export type ApiMeta = {
   cachedAt: string;
   expiresAt?: string;
   fallback: boolean;
-  source: "api" | "coingecko" | "mock";
+  source: "api" | "coingecko" | "finnhub" | "mock";
   ttlMs?: number;
   error?: string;
 };

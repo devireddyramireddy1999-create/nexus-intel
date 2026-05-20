@@ -12,6 +12,8 @@ export type MarketAssetQuote = {
   changePercent: number;
   trend: MarketTrend;
   category: MarketAssetCategory;
+  fallback?: boolean;
+  source?: string;
 };
 
 export type MarketAsset = MarketAssetQuote;

@@ -22,7 +22,10 @@ export type MarketAsset = {
   change: number;
   category: "Index" | "Crypto" | "Commodity" | "FX";
   note: string;
+  fallback?: boolean;
+  proxySymbol?: string;
   series: TrendPoint[];
+  source?: string;
 };
 
 export type IntelligenceStory = {

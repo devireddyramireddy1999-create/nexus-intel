@@ -75,10 +75,12 @@ async function buildLiveCryptoData(livePrices) {
     return {
       ...asset,
       change,
+      fallback: false,
       lastUpdatedAt: priceData.usd_last_updated_at
         ? new Date(priceData.usd_last_updated_at * 1000).toISOString()
         : new Date().toISOString(),
       note: `Live CoinGecko price. 24h trend is ${trend}.`,
+      source: "CoinGecko",
       trend,
       value: formatUsd(priceData.usd),
     };

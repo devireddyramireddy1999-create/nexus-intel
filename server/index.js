@@ -1,3 +1,4 @@
+import "./lib/env.js";
 import express from "express";
 import { withCache } from "./lib/cache.js";
 import { generateBriefing } from "./services/briefingProvider.js";

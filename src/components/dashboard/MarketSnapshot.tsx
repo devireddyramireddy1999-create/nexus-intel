@@ -41,11 +41,11 @@ export function MarketSnapshot() {
           <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Market Snapshot</p>
           <h2 className="mt-1 break-words text-xl font-semibold text-foreground">Cross-Asset Pulse</h2>
         </div>
-        <Badge variant={cryptoMeta?.fallback ? "warning" : isLiveCrypto(cryptoMeta) ? "success" : "secondary"}>
-          {loading ? "Loading" : getSnapshotLabel(cryptoMeta)}
+        <Badge variant={isFallbackSnapshot(marketMeta, cryptoMeta) ? "warning" : isLiveSnapshot(marketMeta, cryptoMeta) ? "success" : "secondary"}>
+          {loading ? "Loading" : getSnapshotLabel(marketMeta, cryptoMeta)}
         </Badge>
       </div>
-      {marketMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">Markets backend unavailable. Showing local market fallback.</p> : null}
+      {marketMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getMarketErrorMessage(marketMeta)}</p> : null}
       {cryptoMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getCryptoErrorMessage(cryptoMeta)}</p> : null}
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {assets.map((asset, index) => {
@@ -102,10 +102,32 @@ function isLiveCrypto(meta: ApiMeta | null) {
   return meta?.source === "coingecko" && meta.fallback === false;
 }
 
-function getSnapshotLabel(meta: ApiMeta | null) {
-  if (isLiveCrypto(meta)) return "Mixed: live crypto + mock markets";
-  if (meta?.fallback) return "Fallback: mock crypto + mock markets";
+function isLiveMarkets(meta: ApiMeta | null) {
+  return meta?.source === "finnhub" && meta.fallback === false;
+}
+
+function isLiveSnapshot(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null) {
+  return isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta);
+}
+
+function isFallbackSnapshot(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null) {
+  return Boolean(marketMeta?.fallback || cryptoMeta?.fallback);
+}
+
+function getSnapshotLabel(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null) {
+  if (isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta)) return "Mixed: live crypto + live market proxies";
+  if (isLiveCrypto(cryptoMeta)) return "Mixed: live crypto + mock markets";
+  if (isLiveMarkets(marketMeta)) return "Mixed: mock crypto + live market proxies";
+  if (marketMeta?.fallback || cryptoMeta?.fallback) return "Fallback: mock crypto + mock markets";
   return "Mixed feed";
+}
+
+function getMarketErrorMessage(meta: ApiMeta) {
+  if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
+    return "Markets backend unavailable. Showing local market fallback.";
+  }
+
+  return "Live market proxy feed unavailable. Showing local market fallback.";
 }
 
 function getCryptoErrorMessage(meta: ApiMeta) {
