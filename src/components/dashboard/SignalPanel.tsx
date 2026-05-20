@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cryptoRadar, geopoliticalWatch, priorities, techSignals } from "@/data/mockData";
+import { getCryptoData, getNewsData, type ApiMeta } from "@/services/backendApi";
+import type { CryptoSignal, TechSignal, WatchItem } from "@/types/intel";
 
 type SignalPanelProps = {
   title: string;
@@ -12,6 +15,50 @@ type SignalPanelProps = {
 };
 
 export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanelProps) {
+  const [geoItems, setGeoItems] = useState<WatchItem[]>(geopoliticalWatch);
+  const [techItems, setTechItems] = useState<TechSignal[]>(techSignals);
+  const [cryptoItems, setCryptoItems] = useState<CryptoSignal[]>(cryptoRadar);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(variant !== "priority");
+
+  useEffect(() => {
+    let active = true;
+
+    if (variant === "priority") {
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    if (variant === "crypto") {
+      getCryptoData()
+        .then((response) => {
+          if (!active) return;
+          setMeta(response.meta);
+          setCryptoItems(response.data.radar);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    } else {
+      getNewsData()
+        .then((response) => {
+          if (!active) return;
+          setMeta(response.meta);
+          setGeoItems(response.data.geopoliticalWatch);
+          setTechItems(response.data.techSignals);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [variant]);
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -23,19 +70,27 @@ export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanel
             </div>
             <CardTitle className="break-words">{title}</CardTitle>
           </div>
-          <Badge variant="secondary">{variant}</Badge>
+          <Badge variant={meta?.fallback ? "warning" : "secondary"}>{loading ? "loading" : meta?.fallback ? "fallback" : variant}</Badge>
         </div>
       </CardHeader>
-      <CardContent>{renderPanel(variant)}</CardContent>
+      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Backend unavailable. Showing local fallback.</p> : null}
+      <CardContent>{renderPanel(variant, { cryptoItems, geoItems, loading, techItems })}</CardContent>
     </Card>
   );
 }
 
-function renderPanel(variant: SignalPanelProps["variant"]) {
+function renderPanel(
+  variant: SignalPanelProps["variant"],
+  data: { cryptoItems: CryptoSignal[]; geoItems: WatchItem[]; loading: boolean; techItems: TechSignal[] },
+) {
+  if (data.loading) {
+    return <p className="text-sm text-muted-foreground">Loading intelligence feed...</p>;
+  }
+
   if (variant === "geo") {
     return (
       <div className="space-y-3">
-        {geopoliticalWatch.slice(0, 3).map((item) => (
+        {data.geoItems.slice(0, 3).map((item) => (
           <div key={item.region} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="break-words text-sm font-semibold text-foreground">{item.region}</p>
@@ -52,7 +107,7 @@ function renderPanel(variant: SignalPanelProps["variant"]) {
   if (variant === "tech") {
     return (
       <div className="space-y-4">
-        {techSignals.map((signal) => (
+        {data.techItems.map((signal) => (
           <div key={signal.label}>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-semibold text-foreground">{signal.label}</p>
@@ -69,7 +124,7 @@ function renderPanel(variant: SignalPanelProps["variant"]) {
   if (variant === "crypto") {
     return (
       <div className="space-y-3">
-        {cryptoRadar.map((item) => (
+        {data.cryptoItems.map((item) => (
           <div key={item.asset} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="break-words text-sm font-semibold text-foreground">{item.asset}</p>

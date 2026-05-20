@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { Newspaper } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { topStories } from "@/data/mockData";
+import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import type { IntelligenceStory } from "@/types/intel";
 
 const sentimentVariant = {
   bullish: "success",
@@ -11,6 +14,28 @@ const sentimentVariant = {
 } as const;
 
 export function TopStories() {
+  const [stories, setStories] = useState<IntelligenceStory[]>(topStories);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    getNewsData()
+      .then((response) => {
+        if (!active) return;
+        setStories(response.data.stories);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -22,11 +47,14 @@ export function TopStories() {
             </div>
             <CardTitle>Signal-Weighted Headlines</CardTitle>
           </div>
-          <Badge variant="secondary">{topStories.length} items</Badge>
+          <Badge variant={meta?.fallback ? "warning" : "secondary"}>
+            {loading ? "Loading" : meta?.fallback ? "Fallback" : `${stories.length} items`}
+          </Badge>
         </div>
       </CardHeader>
+      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Backend unavailable. Showing local news fallback.</p> : null}
       <CardContent className="space-y-3">
-        {topStories.map((story) => (
+        {stories.map((story) => (
           <article key={story.id} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge variant="default">{story.section}</Badge>

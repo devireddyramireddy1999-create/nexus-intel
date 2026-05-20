@@ -1,23 +1,50 @@
+import { useEffect, useState } from "react";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { riskSignals } from "@/data/mockData";
 import { cn } from "@/lib/utils";
+import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import type { RiskSignal } from "@/types/intel";
 
 export function RiskMeter() {
+  const [signals, setSignals] = useState<RiskSignal[]>(riskSignals);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    getNewsData()
+      .then((response) => {
+        if (!active) return;
+        setSignals(response.data.riskSignals);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Risk Meter</p>
-            <CardTitle className="mt-1">Global Risk Stack</CardTitle>
+              <CardTitle className="mt-1">Global Risk Stack</CardTitle>
+            </div>
+            <ShieldAlert className="size-5 text-nexus-ember" />
           </div>
-          <ShieldAlert className="size-5 text-nexus-ember" />
-        </div>
-      </CardHeader>
+        </CardHeader>
+      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Risk API unavailable. Showing local fallback.</p> : null}
       <CardContent className="space-y-4">
-        {riskSignals.map((signal) => (
+        {loading ? <p className="text-sm text-muted-foreground">Loading risk signals...</p> : null}
+        {signals.map((signal) => (
           <div key={signal.label}>
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">

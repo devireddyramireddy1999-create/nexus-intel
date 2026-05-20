@@ -1,11 +1,40 @@
+import { useEffect, useState } from "react";
 import { Crosshair, Globe2, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { geopoliticalWatch, riskSignals, topStories } from "@/data/mockData";
+import { geopoliticalWatch as fallbackGeopoliticalWatch, riskSignals as fallbackRiskSignals, topStories as fallbackTopStories } from "@/data/mockData";
+import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import type { IntelligenceStory, RiskSignal, WatchItem } from "@/types/intel";
 
 export function GeopoliticsPage() {
+  const [watch, setWatch] = useState<WatchItem[]>(fallbackGeopoliticalWatch);
+  const [risks, setRisks] = useState<RiskSignal[]>(fallbackRiskSignals);
+  const [stories, setStories] = useState<IntelligenceStory[]>(fallbackTopStories);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    getNewsData()
+      .then((response) => {
+        if (!active) return;
+        setWatch(response.data.geopoliticalWatch);
+        setRisks(response.data.riskSignals);
+        setStories(response.data.stories);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <>
       <PageHeader
@@ -13,8 +42,9 @@ export function GeopoliticsPage() {
         title="Global Watch Floor"
         description="Regional pressure, shipping exposure, supply-chain sensitivity, and defense technology demand in one briefing surface."
         icon={Globe2}
-        badge="4 regions"
+        badge={loading ? "Loading" : meta?.fallback ? "Fallback regions" : `${watch.length} regions`}
       />
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable. Showing local geopolitical fallback.</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
@@ -27,7 +57,7 @@ export function GeopoliticsPage() {
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            {geopoliticalWatch.map((item) => (
+            {watch.map((item) => (
               <article key={item.region} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h2 className="text-lg font-semibold text-foreground">{item.region}</h2>
@@ -48,7 +78,7 @@ export function GeopoliticsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {riskSignals.map((signal) => (
+            {risks.map((signal) => (
               <div key={signal.label}>
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-medium text-foreground">{signal.label}</p>
@@ -63,7 +93,7 @@ export function GeopoliticsPage() {
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        {topStories
+        {stories
           .filter((story) => story.section === "World" || story.section === "Geopolitics")
           .map((story) => (
             <Card key={story.id}>

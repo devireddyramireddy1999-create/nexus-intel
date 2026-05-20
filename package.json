@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host localhost --port 5173 --strictPort",
+    "dev:full": "concurrently -k -n backend,frontend -c cyan,blue \"npm run server\" \"npm run dev\"",
+    "server": "node server/index.js",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
@@ -12,6 +14,7 @@
     "@radix-ui/react-slot": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "express": "^5.2.1",
     "framer-motion": "^12.0.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
@@ -26,6 +29,7 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",

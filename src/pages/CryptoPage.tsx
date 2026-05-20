@@ -1,14 +1,39 @@
+import { useEffect, useState } from "react";
 import { Activity, Coins, Gauge } from "lucide-react";
 import { MarketChart } from "@/components/charts/MarketChart";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cryptoRadar, marketAssets } from "@/data/mockData";
+import { cryptoRadar as fallbackCryptoRadar, marketAssets } from "@/data/mockData";
 import { formatSigned } from "@/lib/utils";
+import { getCryptoData, type ApiMeta } from "@/services/backendApi";
+import type { CryptoSignal, MarketAsset } from "@/types/intel";
 
 export function CryptoPage() {
-  const cryptoAssets = marketAssets.filter((asset) => asset.category === "Crypto");
+  const [cryptoAssets, setCryptoAssets] = useState<MarketAsset[]>(marketAssets.filter((asset) => asset.category === "Crypto"));
+  const [radar, setRadar] = useState<CryptoSignal[]>(fallbackCryptoRadar);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    getCryptoData()
+      .then((response) => {
+        if (!active) return;
+        setCryptoAssets(response.data.assets);
+        setRadar(response.data.radar);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <>
@@ -17,8 +42,9 @@ export function CryptoPage() {
         title="Crypto Radar"
         description="Spot flow, risk appetite, leverage discipline, and protocol-level momentum for the crypto sleeve."
         icon={Coins}
-        badge="On-chain mock"
+        badge={loading ? "Loading" : meta?.fallback ? "Fallback on-chain" : "API on-chain"}
       />
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">Crypto backend unavailable. Showing local fallback.</p> : null}
       <div className="grid gap-5 lg:grid-cols-3">
         {cryptoAssets.map((asset) => (
           <Card key={asset.symbol}>
@@ -49,7 +75,7 @@ export function CryptoPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {cryptoRadar.map((signal) => (
+            {radar.map((signal) => (
               <div key={signal.asset}>
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold text-foreground">{signal.asset}</p>
@@ -69,7 +95,7 @@ export function CryptoPage() {
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
-            {cryptoRadar.map((signal) => (
+            {radar.map((signal) => (
               <article key={signal.asset} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
                 <Badge>{signal.asset}</Badge>
                 <h2 className="mt-3 text-base font-semibold text-foreground">{signal.thesis}</h2>

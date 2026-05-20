@@ -1,4 +1,5 @@
 import { marketAssets } from "@/data/mockData";
+import { getMarketsData } from "@/services/backendApi";
 
 export type MarketAssetCategory = "Index" | "Crypto" | "Commodity" | "FX";
 
@@ -42,6 +43,13 @@ const mockMarketQuotes: MarketAssetQuote[] = marketAssets.map((asset) => ({
 class MockMarketDataSource implements MarketDataSource {
   async fetchMarketSnapshot(query?: MarketQuery) {
     return filterAssets(mockMarketQuotes, query);
+  }
+}
+
+class BackendMarketDataSource implements MarketDataSource {
+  async fetchMarketSnapshot(query?: MarketQuery) {
+    const response = await getMarketsData();
+    return filterAssets(response.data.quotes, query);
   }
 }
 
@@ -94,8 +102,9 @@ function formatPercent(value: number) {
   return `${sign}${value.toFixed(2)}%`;
 }
 
-export function createMarketService(dataSource: MarketDataSource = new MockMarketDataSource()): MarketService {
+export function createMarketService(dataSource: MarketDataSource = new BackendMarketDataSource()): MarketService {
   return new NexusMarketService(dataSource);
 }
 
 export const marketService = createMarketService();
+export const localMarketService = createMarketService(new MockMarketDataSource());

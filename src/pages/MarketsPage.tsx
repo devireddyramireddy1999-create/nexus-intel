@@ -1,15 +1,43 @@
+import { useEffect, useState } from "react";
 import { AreaChart, BarChart3, ChartCandlestick } from "lucide-react";
 import { MarketChart } from "@/components/charts/MarketChart";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { macroTimeline, marketAssets, sectorHeat } from "@/data/mockData";
+import { macroTimeline as fallbackMacroTimeline, marketAssets as fallbackMarketAssets, sectorHeat as fallbackSectorHeat } from "@/data/mockData";
 import { formatSigned } from "@/lib/utils";
+import { getMarketsData, type ApiMeta } from "@/services/backendApi";
+import type { MarketAsset } from "@/types/intel";
 
 export function MarketsPage() {
-  const indexes = marketAssets.filter((asset) => asset.category === "Index");
-  const commodities = marketAssets.filter((asset) => asset.category === "Commodity" || asset.category === "FX");
+  const [assets, setAssets] = useState<MarketAsset[]>(fallbackMarketAssets);
+  const [heat, setHeat] = useState(fallbackSectorHeat);
+  const [macro, setMacro] = useState(fallbackMacroTimeline);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+  const indexes = assets.filter((asset) => asset.category === "Index");
+  const commodities = assets.filter((asset) => asset.category === "Commodity" || asset.category === "FX");
+
+  useEffect(() => {
+    let active = true;
+
+    getMarketsData()
+      .then((response) => {
+        if (!active) return;
+        setAssets(response.data.assets);
+        setHeat(response.data.sectorHeat);
+        setMacro(response.data.macroTimeline);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <>
@@ -18,8 +46,9 @@ export function MarketsPage() {
         title="Cross-Asset Market Console"
         description="Index momentum, commodity pressure, FX stability, and sector heat scored into a single operating view."
         icon={ChartCandlestick}
-        badge="Mock prices"
+        badge={loading ? "Loading" : meta?.fallback ? "Fallback prices" : "API prices"}
       />
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">Markets backend unavailable. Showing local fallback.</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
         <Card>
           <CardHeader>
@@ -59,7 +88,7 @@ export function MarketsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {sectorHeat.map((sector) => (
+            {heat.map((sector) => (
               <div key={sector.name}>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="font-medium text-foreground">{sector.name}</span>
@@ -106,7 +135,7 @@ export function MarketsPage() {
         <CardContent>
           <div className="h-72">
             <MarketChart
-              data={macroTimeline.map((item) => ({ time: item.name, value: item.risk + item.liquidity + item.growth }))}
+              data={macro.map((item) => ({ time: item.name, value: item.risk + item.liquidity + item.growth }))}
               color="#2b8cff"
               variant="bar"
               height={280}

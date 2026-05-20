@@ -1,4 +1,5 @@
 import { topStories } from "@/data/mockData";
+import { getNewsData } from "@/services/backendApi";
 
 export type NewsCategory = "world" | "geopolitics" | "markets" | "crypto" | "ai-tech";
 
@@ -88,6 +89,13 @@ class MockNewsDataSource implements NewsDataSource {
   }
 }
 
+class BackendNewsDataSource implements NewsDataSource {
+  async fetchNews(query?: NewsQuery) {
+    const response = await getNewsData();
+    return filterNews(response.data.newsItems, query);
+  }
+}
+
 class NexusNewsService implements NewsService {
   constructor(private readonly dataSource: NewsDataSource) {}
 
@@ -114,8 +122,9 @@ function filterNews(items: NewsItem[], query?: NewsQuery) {
   return typeof query?.limit === "number" ? filtered.slice(0, query.limit) : filtered;
 }
 
-export function createNewsService(dataSource: NewsDataSource = new MockNewsDataSource()): NewsService {
+export function createNewsService(dataSource: NewsDataSource = new BackendNewsDataSource()): NewsService {
   return new NexusNewsService(dataSource);
 }
 
 export const newsService = createNewsService();
+export const localNewsService = createNewsService(new MockNewsDataSource());

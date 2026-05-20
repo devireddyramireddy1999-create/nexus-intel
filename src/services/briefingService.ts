@@ -1,5 +1,6 @@
 import { geopoliticalWatch, riskSignals, techSignals } from "@/data/mockData";
 import { formatTime } from "@/lib/utils";
+import { postBriefing } from "@/services/backendApi";
 import { generateDailyBriefing as generateAIDailyBriefing, type AIDailyBriefing } from "@/services/aiBriefingService";
 import { marketService as defaultMarketService, type MarketService } from "@/services/marketService";
 import { memoryService as defaultMemoryService, type MemoryService, type PersonalPriorityMemory } from "@/services/memoryService";
@@ -74,8 +75,13 @@ class NexusBriefingService implements BriefingService {
   }
 
   async generateDailyBriefing(request: BriefingRequest) {
-    const briefing = await this.generateBriefing(request);
-    return mapBriefingToUiBriefing(briefing, request.mode);
+    try {
+      const response = await postBriefing<GeneratedBriefing>(request);
+      return response.data;
+    } catch {
+      const briefing = await this.generateBriefing(request);
+      return mapBriefingToUiBriefing(briefing, request.mode);
+    }
   }
 }
 

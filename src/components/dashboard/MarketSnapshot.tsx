@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { MarketChart } from "@/components/charts/MarketChart";
@@ -5,8 +6,32 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { marketAssets } from "@/data/mockData";
 import { cn, formatSigned } from "@/lib/utils";
+import { getMarketsData, type ApiMeta } from "@/services/backendApi";
+import type { MarketAsset } from "@/types/intel";
 
 export function MarketSnapshot() {
+  const [assets, setAssets] = useState<MarketAsset[]>(marketAssets);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    getMarketsData()
+      .then((response) => {
+        if (!active) return;
+        setAssets(response.data.assets);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -14,10 +39,13 @@ export function MarketSnapshot() {
           <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Market Snapshot</p>
           <h2 className="mt-1 break-words text-xl font-semibold text-foreground">Cross-Asset Pulse</h2>
         </div>
-        <Badge variant="secondary">Mock feed</Badge>
+        <Badge variant={meta?.fallback ? "warning" : "secondary"}>
+          {loading ? "Loading" : meta?.fallback ? "Fallback feed" : "API feed"}
+        </Badge>
       </div>
+      {meta?.error ? <p className="mb-3 text-xs text-nexus-ember">Backend unavailable. Showing local market fallback.</p> : null}
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {marketAssets.map((asset, index) => {
+        {assets.map((asset, index) => {
           const positive = asset.change >= 0;
           const color = positive ? "#4bf4a8" : "#ff5f7a";
           return (

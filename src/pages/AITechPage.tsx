@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import { BrainCircuit, Cpu, Network, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { techSignals, topStories } from "@/data/mockData";
+import { techSignals as fallbackTechSignals, topStories as fallbackTopStories } from "@/data/mockData";
+import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import type { IntelligenceStory, TechSignal } from "@/types/intel";
 
 const infrastructureStack = [
   { label: "GPU Clusters", value: 91, icon: Cpu },
@@ -12,6 +15,30 @@ const infrastructureStack = [
 ];
 
 export function AITechPage() {
+  const [signals, setSignals] = useState<TechSignal[]>(fallbackTechSignals);
+  const [stories, setStories] = useState<IntelligenceStory[]>(fallbackTopStories);
+  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    getNewsData()
+      .then((response) => {
+        if (!active) return;
+        setSignals(response.data.techSignals);
+        setStories(response.data.stories);
+        setMeta(response.meta);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <>
       <PageHeader
@@ -19,15 +46,16 @@ export function AITechPage() {
         title="Machine Intelligence Signals"
         description="Compute demand, agent adoption, security governance, and second-order infrastructure beneficiaries."
         icon={BrainCircuit}
-        badge="3 live themes"
+        badge={loading ? "Loading" : meta?.fallback ? "Fallback themes" : `${signals.length} live themes`}
       />
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable. Showing local AI/tech fallback.</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
             <CardTitle>Signal Velocity</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            {techSignals.map((signal) => (
+            {signals.map((signal) => (
               <article key={signal.label} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
                 <Badge>{signal.label}</Badge>
                 <h2 className="mt-3 text-base font-semibold leading-6 text-foreground">{signal.title}</h2>
@@ -69,7 +97,7 @@ export function AITechPage() {
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        {topStories
+        {stories
           .filter((story) => story.section === "AI & Tech")
           .map((story) => (
             <Card key={story.id}>
