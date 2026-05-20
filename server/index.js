@@ -43,7 +43,7 @@ app.get("/api/markets", async (_request, response, next) => {
 
 app.get("/api/crypto", async (_request, response, next) => {
   try {
-    response.json(await withCache("crypto", 45_000, getCryptoData));
+    response.json(await withCache("crypto", 60_000, getCryptoData));
   } catch (error) {
     next(error);
   }
