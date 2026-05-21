@@ -35,7 +35,7 @@ export function CommandBar({ isLoading = false, mode, onModeChange, onSubmit }: 
       transition={{ duration: 0.4 }}
     >
       <form className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center" onSubmit={handleSubmit}>
-        <div className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-md border border-nexus-cyan/25 bg-black/30 px-3">
+        <div className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md border border-nexus-cyan/25 bg-black/30 px-3 lg:min-h-11">
           <Command className="size-4 shrink-0 text-nexus-cyan" />
           <Input
             className="h-10 min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
@@ -61,7 +61,7 @@ export function CommandBar({ isLoading = false, mode, onModeChange, onSubmit }: 
             </Button>
           ))}
         </div>
-        <Button type="submit" className="min-w-0 whitespace-normal lg:w-auto" disabled={isLoading}>
+        <Button type="submit" className="h-11 min-w-0 whitespace-normal lg:h-10 lg:w-auto" disabled={isLoading}>
           {isLoading ? (
             <>
               <Loader2 className="animate-spin" />

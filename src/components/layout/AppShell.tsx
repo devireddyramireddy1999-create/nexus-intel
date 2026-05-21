@@ -28,7 +28,7 @@ export function AppShell({ activePage, children, navItems, onNavigate, statusIco
         <Sidebar activePage={activePage} navItems={navItems} onNavigate={navigate} statusIcon={StatusIcon} />
       </aside>
 
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-background/72 backdrop-blur-xl lg:hidden">
+      <header className="mobile-safe-top sticky top-0 z-30 border-b border-white/10 bg-background/72 backdrop-blur-xl lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Brand statusIcon={StatusIcon} compact />
           <Button variant="secondary" size="icon" aria-label="Open navigation" onClick={() => setOpen(true)}>
@@ -64,12 +64,15 @@ export function AppShell({ activePage, children, navItems, onNavigate, statusIco
         ) : null}
       </AnimatePresence>
 
-      <main className="min-w-0 overflow-x-hidden lg:pl-72">
+      <main className="min-w-0 overflow-x-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-72">
         <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-[1560px] flex-col px-3 py-4 sm:px-6 lg:px-8 lg:py-7">
           <TopStatus />
           {children}
+          <InstallHint />
         </div>
       </main>
+
+      <MobileBottomNav activePage={activePage} navItems={navItems} onNavigate={navigate} />
     </div>
   );
 }
@@ -169,4 +172,50 @@ function TopStatus() {
       </div>
     </div>
   );
+}
+
+function InstallHint() {
+  return (
+    <p className="mt-6 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs leading-5 text-muted-foreground">
+      Install from Safari: Share → Add to Home Screen
+    </p>
+  );
+}
+
+function MobileBottomNav({ activePage, navItems, onNavigate }: Pick<AppShellProps, "activePage" | "navItems" | "onNavigate">) {
+  const mobileItems = navItems.slice(0, 5);
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#030711]/92 px-2 pb-[env(safe-area-inset-bottom)] shadow-panel backdrop-blur-xl lg:hidden">
+      <div className="mx-auto grid h-16 max-w-md grid-cols-5 gap-1">
+        {mobileItems.map((item) => {
+          const Icon = item.icon;
+          const active = item.key === activePage;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              className={cn(
+                "flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-[0.68rem] font-medium leading-none text-muted-foreground transition",
+                "hover:bg-white/[0.07] hover:text-foreground",
+                active && "bg-primary/[0.12] text-primary shadow-[inset_0_0_0_1px_rgba(32,246,255,0.18)]",
+              )}
+              onClick={() => onNavigate(item.key)}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon className="size-4 shrink-0" />
+              <span className="max-w-full truncate">{getMobileLabel(item.label)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function getMobileLabel(label: string) {
+  if (label === "Geopolitics") return "Geo";
+  if (label === "AI & Tech") return "AI";
+  return label;
 }

@@ -31,7 +31,7 @@ const tooltipStyle = {
 
 export function MarketChart({ data, color = "#20f6ff", height = 120, variant = "area", className }: MarketChartProps) {
   return (
-    <div className={cn("h-32 w-full", className)} style={{ height }}>
+    <div className={cn("h-32 min-w-0 w-full", className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         {variant === "bar" ? (
           <BarChart data={data}>

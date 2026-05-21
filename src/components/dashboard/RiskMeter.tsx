@@ -33,14 +33,14 @@ export function RiskMeter() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Risk Meter</p>
-              <CardTitle className="mt-1">Global Risk Stack</CardTitle>
-            </div>
-            <ShieldAlert className="size-5 text-nexus-ember" />
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.22em] text-nexus-cyan sm:tracking-[0.26em]">Risk Meter</p>
+            <CardTitle className="mt-1">Global Risk Stack</CardTitle>
           </div>
-        </CardHeader>
+          <ShieldAlert className="size-5 shrink-0 text-nexus-ember" />
+        </div>
+      </CardHeader>
       {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Risk API unavailable. Showing local fallback.</p> : null}
       <CardContent className="space-y-4">
         {loading ? <p className="text-sm text-muted-foreground">Loading risk signals...</p> : null}

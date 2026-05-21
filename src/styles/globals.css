@@ -30,11 +30,15 @@
 
   html {
     @apply bg-background text-foreground antialiased;
+    min-width: 320px;
+    overflow-x: hidden;
   }
 
   body {
+    width: 100%;
     min-width: 320px;
     min-height: 100vh;
+    min-height: 100svh;
     margin: 0;
     overflow-x: hidden;
     background:
@@ -45,7 +49,14 @@
 
   #root {
     min-height: 100vh;
+    min-height: 100svh;
     overflow-x: hidden;
+  }
+
+  img,
+  canvas,
+  video {
+    max-width: 100%;
   }
 
   button,
@@ -91,6 +102,11 @@
 
   .glass-card {
     @apply border border-white/10 bg-card/70 shadow-panel backdrop-blur-xl;
+    overflow-wrap: break-word;
+  }
+
+  .mobile-safe-top {
+    padding-top: env(safe-area-inset-top);
   }
 
   .panel-line {
