@@ -80,7 +80,7 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
               <Loader2 className="mb-4 size-10 animate-spin text-nexus-cyan" />
               <p className="text-lg font-semibold text-foreground">Generating daily brief</p>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                NEXUS is synthesizing mock news, markets, crypto, AI/tech, and personal memory.
+                NEXUS is synthesizing live news, markets, crypto, AI/tech, and personal priorities.
               </p>
             </motion.div>
           ) : briefing ? (
@@ -128,7 +128,7 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
               <FileText className="mb-4 size-10 text-nexus-cyan" />
               <p className="text-lg font-semibold text-foreground">No briefing generated yet</p>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                Enter "Good morning" to synthesize the current mock intelligence stack.
+                Enter "Good morning" to synthesize the current intelligence stack.
               </p>
             </motion.div>
           )}

@@ -1,6 +1,9 @@
 import { macroTimeline, marketAssets, sectorHeat } from "../data/mockData.js";
 
 const FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote";
+const FRANKFURTER_LATEST_URL = "https://api.frankfurter.dev/v1/latest";
+const FRANKFURTER_HISTORICAL_URL = "https://api.frankfurter.dev/v1";
+const OPEN_EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD";
 
 const liveMarketProxies = [
   {
@@ -25,32 +28,22 @@ const liveMarketProxies = [
   },
 ];
 
-const optionalMarketProxies = [
-  {
-    symbol: "USDINR",
-    proxySymbol: "OANDA:USD_INR",
-    note: "Live Finnhub forex quote using OANDA USD/INR.",
-  },
-];
-
 export async function getMarkets() {
   const fallback = getFallbackMarketsData();
   const apiKey = process.env.FINNHUB_API_KEY?.trim();
-
-  if (!apiKey) {
-    return buildFallbackEnvelope("FINNHUB_API_KEY is not configured.");
-  }
-
-  const assets = await buildFinnhubAssets(fallback.assets, apiKey);
+  const assets = await buildLiveMarketAssets(fallback.assets, apiKey);
   const liveRequiredAssets = assets.filter((asset) => isRequiredLiveAsset(asset.symbol) && asset.fallback === false);
-
-  if (liveRequiredAssets.length === 0) {
-    return buildFallbackEnvelope("Finnhub did not return usable market proxy quotes.");
-  }
-
   const missingRequiredSymbols = liveMarketProxies
     .map((proxy) => proxy.symbol)
     .filter((symbol) => !liveRequiredAssets.some((asset) => asset.symbol === symbol));
+  const marketProxiesLive = Boolean(apiKey) && liveRequiredAssets.length > 0 && missingRequiredSymbols.length === 0;
+  const usdInrAsset = assets.find((asset) => asset.symbol === "USDINR");
+  const errors = [
+    ...(!apiKey ? ["FINNHUB_API_KEY is not configured."] : []),
+    ...(apiKey && liveRequiredAssets.length === 0 ? ["Finnhub did not return usable market proxy quotes."] : []),
+    ...(apiKey && missingRequiredSymbols.length ? [`Finnhub missing proxy data for ${missingRequiredSymbols.join(", ")}.`] : []),
+    ...(usdInrAsset?.fallback ? ["USD/INR live FX sources unavailable."] : []),
+  ];
 
   return {
     data: {
@@ -60,11 +53,9 @@ export async function getMarkets() {
       macroTimeline,
     },
     meta: {
-      ...(missingRequiredSymbols.length
-        ? { error: `Finnhub missing proxy data for ${missingRequiredSymbols.join(", ")}.` }
-        : {}),
-      fallback: missingRequiredSymbols.length > 0,
-      source: "finnhub",
+      ...(errors.length ? { error: errors.join(" ") } : {}),
+      fallback: !marketProxiesLive,
+      source: marketProxiesLive ? "finnhub" : "mock",
     },
   };
 }
@@ -99,24 +90,19 @@ function getFallbackMarketsData() {
   };
 }
 
-function buildFallbackEnvelope(error) {
-  return {
-    data: getFallbackMarketsData(),
-    meta: {
-      error,
-      fallback: true,
-      source: "mock",
-    },
-  };
-}
-
-async function buildFinnhubAssets(fallbackAssets, apiKey) {
-  const proxyResults = await Promise.allSettled(
-    [...liveMarketProxies, ...optionalMarketProxies].map(async (proxy) => ({
-      proxy,
-      quote: await fetchFinnhubQuote(proxy.proxySymbol, apiKey),
-    })),
-  );
+async function buildLiveMarketAssets(fallbackAssets, apiKey) {
+  const usdInrFallback = fallbackAssets.find((asset) => asset.symbol === "USDINR");
+  const [proxyResults, usdInrAsset] = await Promise.all([
+    apiKey
+      ? Promise.allSettled(
+          liveMarketProxies.map(async (proxy) => ({
+            proxy,
+            quote: await fetchFinnhubQuote(proxy.proxySymbol, apiKey),
+          })),
+        )
+      : Promise.resolve([]),
+    usdInrFallback ? buildLiveUsdInrAsset(usdInrFallback).catch(() => undefined) : Promise.resolve(undefined),
+  ]);
   const liveBySymbol = new Map();
 
   for (const result of proxyResults) {
@@ -129,7 +115,108 @@ async function buildFinnhubAssets(fallbackAssets, apiKey) {
     liveBySymbol.set(proxy.symbol, toLiveAsset(fallbackAsset, proxy, quote));
   }
 
+  if (usdInrAsset) {
+    liveBySymbol.set("USDINR", usdInrAsset);
+  }
+
   return fallbackAssets.map((asset) => liveBySymbol.get(asset.symbol) ?? withMockSource(asset));
+}
+
+async function buildLiveUsdInrAsset(fallbackAsset) {
+  const quote = await fetchUsdInrQuote();
+  const change = quote.previousRate ? Number((((quote.rate - quote.previousRate) / quote.previousRate) * 100).toFixed(2)) : 0;
+
+  return {
+    ...fallbackAsset,
+    change,
+    fallback: false,
+    lastUpdatedAt: quote.updatedAt,
+    note: "Live FX quote for USD/INR.",
+    series: scaleSeriesToPrice(fallbackAsset.series, quote.rate),
+    source: quote.source,
+    value: formatMarketValue(quote.rate, fallbackAsset.category),
+  };
+}
+
+async function fetchUsdInrQuote() {
+  try {
+    return await fetchFrankfurterUsdInrQuote();
+  } catch {
+    return fetchOpenExchangeUsdInrQuote();
+  }
+}
+
+async function fetchFrankfurterUsdInrQuote() {
+  const latestUrl = new URL(FRANKFURTER_LATEST_URL);
+  latestUrl.searchParams.set("from", "USD");
+  latestUrl.searchParams.set("to", "INR");
+
+  const latest = await fetchJson(latestUrl, "Frankfurter");
+  const rate = Number(latest?.rates?.INR);
+
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error("Frankfurter response missing USD/INR rate.");
+  }
+
+  const previousRate = latest?.date ? await fetchFrankfurterPreviousUsdInrRate(latest.date).catch(() => undefined) : undefined;
+
+  return {
+    rate,
+    previousRate,
+    source: "Frankfurter:USDINR",
+    updatedAt: latest?.date ? new Date(`${latest.date}T00:00:00Z`).toISOString() : new Date().toISOString(),
+  };
+}
+
+async function fetchFrankfurterPreviousUsdInrRate(latestDate) {
+  const previousDate = getPreviousDate(latestDate);
+  const historicalUrl = new URL(`${FRANKFURTER_HISTORICAL_URL}/${previousDate}`);
+  historicalUrl.searchParams.set("from", "USD");
+  historicalUrl.searchParams.set("to", "INR");
+
+  const previous = await fetchJson(historicalUrl, "Frankfurter historical");
+  const previousRate = Number(previous?.rates?.INR);
+
+  return Number.isFinite(previousRate) && previousRate > 0 ? previousRate : undefined;
+}
+
+async function fetchOpenExchangeUsdInrQuote() {
+  const payload = await fetchJson(OPEN_EXCHANGE_RATE_URL, "Open Exchange Rates");
+  const rate = Number(payload?.rates?.INR);
+
+  if (payload?.result !== "success" || !Number.isFinite(rate) || rate <= 0) {
+    throw new Error("Open exchange-rate response missing USD/INR rate.");
+  }
+
+  return {
+    rate,
+    previousRate: undefined,
+    source: "ExchangeRate-API:USDINR",
+    updatedAt: payload?.time_last_update_utc ? new Date(payload.time_last_update_utc).toISOString() : new Date().toISOString(),
+  };
+}
+
+async function fetchJson(url, sourceName) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "NEXUS-Intel/0.1",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`${sourceName} responded with ${response.status}`);
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchFinnhubQuote(symbol, apiKey) {
@@ -205,6 +292,12 @@ function getChangePercent(quote) {
   }
 
   return 0;
+}
+
+function getPreviousDate(date) {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  parsed.setUTCDate(parsed.getUTCDate() - 1);
+  return parsed.toISOString().slice(0, 10);
 }
 
 function scaleSeriesToPrice(series, price) {
