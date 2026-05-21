@@ -23,3 +23,17 @@ export function formatTime(date = new Date()) {
     minute: "2-digit",
   }).format(date);
 }
+
+export function formatPublishedTime(value?: string) {
+  if (!value) return "time unavailable";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "time unavailable";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}

@@ -24,7 +24,7 @@ export type ApiMeta = {
   cachedAt: string;
   expiresAt?: string;
   fallback: boolean;
-  source: "api" | "coingecko" | "finnhub" | "mock";
+  source: "api" | "coingecko" | "finnhub" | "rss" | "mock";
   ttlMs?: number;
   error?: string;
 };
@@ -198,5 +198,6 @@ function toNewsItem(story: IntelligenceStory, index: number): NewsItem {
     summary: story.summary,
     whyItMatters: story.impact,
     marketImpact: marketImpactByCategory[category],
+    sourceType: "fallback",
   };
 }

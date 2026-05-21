@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { geopoliticalWatch as fallbackGeopoliticalWatch, riskSignals as fallbackRiskSignals, topStories as fallbackTopStories } from "@/data/mockData";
+import { formatPublishedTime } from "@/lib/utils";
 import { getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { IntelligenceStory, RiskSignal, WatchItem } from "@/types/intel";
 
@@ -42,7 +43,7 @@ export function GeopoliticsPage() {
         title="Global Watch Floor"
         description="Regional pressure, shipping exposure, supply-chain sensitivity, and defense technology demand in one briefing surface."
         icon={Globe2}
-        badge={loading ? "Loading" : meta?.fallback ? "Fallback regions" : `${watch.length} regions`}
+        badge={loading ? "Loading" : meta?.fallback ? "Fallback regions" : "Live RSS"}
       />
       {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable. Showing local geopolitical fallback.</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
@@ -102,6 +103,9 @@ export function GeopoliticsPage() {
                   <CardTitle>{story.title}</CardTitle>
                   <Badge>{story.confidence}%</Badge>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {story.source ?? "NEXUS"} / {formatPublishedTime(story.publishedAt)}
+                </p>
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-6 text-muted-foreground">{story.summary}</p>

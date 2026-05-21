@@ -6,24 +6,26 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { marketAssets } from "@/data/mockData";
 import { cn, formatSigned } from "@/lib/utils";
-import { getCryptoData, getMarketsData, type ApiMeta } from "@/services/backendApi";
+import { getCryptoData, getMarketsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { MarketAsset } from "@/types/intel";
 
 export function MarketSnapshot() {
   const [assets, setAssets] = useState<MarketAsset[]>(marketAssets);
   const [marketMeta, setMarketMeta] = useState<ApiMeta | null>(null);
   const [cryptoMeta, setCryptoMeta] = useState<ApiMeta | null>(null);
+  const [newsMeta, setNewsMeta] = useState<ApiMeta | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([getMarketsData(), getCryptoData()])
-      .then(([marketResponse, cryptoResponse]) => {
+    Promise.all([getMarketsData(), getCryptoData(), getNewsData()])
+      .then(([marketResponse, cryptoResponse, newsResponse]) => {
         if (!active) return;
         setAssets(mergeLiveCryptoAssets(marketResponse.data.assets, cryptoResponse.data.assets));
         setMarketMeta(marketResponse.meta);
         setCryptoMeta(cryptoResponse.meta);
+        setNewsMeta(newsResponse.meta);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -41,12 +43,15 @@ export function MarketSnapshot() {
           <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Market Snapshot</p>
           <h2 className="mt-1 break-words text-xl font-semibold text-foreground">Cross-Asset Pulse</h2>
         </div>
-        <Badge variant={isFallbackSnapshot(marketMeta, cryptoMeta) ? "warning" : isLiveSnapshot(marketMeta, cryptoMeta) ? "success" : "secondary"}>
-          {loading ? "Loading" : getSnapshotLabel(marketMeta, cryptoMeta)}
+        <Badge
+          variant={isFallbackSnapshot(marketMeta, cryptoMeta, newsMeta) ? "warning" : isLiveSnapshot(marketMeta, cryptoMeta, newsMeta) ? "success" : "secondary"}
+        >
+          {loading ? "Loading" : getSnapshotLabel(marketMeta, cryptoMeta, newsMeta)}
         </Badge>
       </div>
       {marketMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getMarketErrorMessage(marketMeta)}</p> : null}
       {cryptoMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getCryptoErrorMessage(cryptoMeta)}</p> : null}
+      {newsMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getNewsErrorMessage(newsMeta)}</p> : null}
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {assets.map((asset, index) => {
           const positive = asset.change >= 0;
@@ -106,16 +111,23 @@ function isLiveMarkets(meta: ApiMeta | null) {
   return meta?.source === "finnhub" && meta.fallback === false;
 }
 
-function isLiveSnapshot(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null) {
-  return isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta);
+function isLiveNews(meta: ApiMeta | null) {
+  return meta?.source === "rss" && meta.fallback === false;
 }
 
-function isFallbackSnapshot(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null) {
-  return Boolean(marketMeta?.fallback || cryptoMeta?.fallback);
+function isLiveSnapshot(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null, newsMeta: ApiMeta | null) {
+  return isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta) && isLiveNews(newsMeta);
 }
 
-function getSnapshotLabel(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null) {
-  if (isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta)) return "Mixed: live crypto + live market proxies";
+function isFallbackSnapshot(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null, newsMeta: ApiMeta | null) {
+  return Boolean(marketMeta?.fallback || cryptoMeta?.fallback || newsMeta?.fallback);
+}
+
+function getSnapshotLabel(marketMeta: ApiMeta | null, cryptoMeta: ApiMeta | null, newsMeta: ApiMeta | null) {
+  if (isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta) && isLiveNews(newsMeta)) {
+    return "Live crypto + live market proxies + live news";
+  }
+  if (isLiveCrypto(cryptoMeta) && isLiveMarkets(marketMeta)) return "Live crypto + live market proxies + mock news";
   if (isLiveCrypto(cryptoMeta)) return "Mixed: live crypto + mock markets";
   if (isLiveMarkets(marketMeta)) return "Mixed: mock crypto + live market proxies";
   if (marketMeta?.fallback || cryptoMeta?.fallback) return "Fallback: mock crypto + mock markets";
@@ -136,4 +148,12 @@ function getCryptoErrorMessage(meta: ApiMeta) {
   }
 
   return "Live crypto feed unavailable. Showing mock crypto fallback.";
+}
+
+function getNewsErrorMessage(meta: ApiMeta) {
+  if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
+    return "News backend unavailable. Showing local news fallback.";
+  }
+
+  return "Live news feed unavailable. Showing local news fallback.";
 }

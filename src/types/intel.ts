@@ -36,6 +36,10 @@ export type IntelligenceStory = {
   impact: string;
   sentiment: "bullish" | "neutral" | "caution" | "risk";
   confidence: number;
+  publishedAt?: string;
+  source?: string;
+  sourceType?: "rss" | "fallback";
+  url?: string;
 };
 
 export type RiskSignal = {

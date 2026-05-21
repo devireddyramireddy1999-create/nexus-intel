@@ -17,6 +17,7 @@ export type NewsItem = {
   summary: string;
   whyItMatters: string;
   marketImpact: string;
+  sourceType?: "rss" | "fallback";
 };
 
 export type NewsQuery = {
@@ -80,6 +81,7 @@ const mockNewsItems: NewsItem[] = topStories.map((story, index) => {
     summary: story.summary,
     whyItMatters: story.impact,
     marketImpact: marketImpactByCategory[category],
+    sourceType: "fallback",
   };
 });
 

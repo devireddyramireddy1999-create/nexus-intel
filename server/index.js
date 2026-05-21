@@ -52,7 +52,7 @@ app.get("/api/crypto", async (_request, response, next) => {
 
 app.get("/api/news", async (_request, response, next) => {
   try {
-    response.json(await withCache("news", 120_000, getNews));
+    response.json(await withCache("news", 300_000, getNews));
   } catch (error) {
     next(error);
   }
