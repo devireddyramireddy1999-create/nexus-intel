@@ -1,4 +1,4 @@
-import { cryptoRadar, techSignals } from "../data/mockData.js";
+import { techSignals } from "../data/mockData.js";
 import { getCryptoData } from "./cryptoProvider.js";
 import { getMarkets } from "./marketProvider.js";
 import { getNews } from "./newsProvider.js";
@@ -42,7 +42,11 @@ export async function generateBriefing({ command = "Good morning", mode = "stand
     throw new Error("Unsupported briefing command.");
   }
 
-  const context = await gatherBriefingContext();
+  const context = await gatherBriefingContext({
+    command,
+    normalizedCommand: normalized,
+    requiredGreeting: getGreetingForCommand(normalized),
+  });
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
   if (!apiKey) {
@@ -78,7 +82,7 @@ export async function generateBriefing({ command = "Good morning", mode = "stand
   }
 }
 
-async function gatherBriefingContext() {
+async function gatherBriefingContext({ command, normalizedCommand, requiredGreeting }) {
   const [cryptoEnvelope, marketsEnvelope, newsEnvelope] = await Promise.all([getCryptoData(), getMarkets(), getNews()]);
   const crypto = unwrapEnvelope(cryptoEnvelope);
   const markets = unwrapEnvelope(marketsEnvelope);
@@ -100,6 +104,9 @@ async function gatherBriefingContext() {
     personalPriorities: [],
     userPreferences: {},
     generatedAt: new Date().toISOString(),
+    normalizedCommand,
+    requiredGreeting,
+    userInput: command,
   };
 }
 
@@ -114,7 +121,7 @@ async function requestOpenAIBriefing({ apiKey, context, mode }) {
           {
             role: "system",
             content:
-              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
+              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. If the user says Good morning, the greeting must be exactly Good morning Sir. Use exact market and crypto values supplied in the prompt. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
           },
           {
             role: "user",
@@ -160,11 +167,19 @@ function buildPromptPayload(context, mode) {
   const newsItems = selectBriefingStories(context.news.newsItems ?? [], mode);
   const feedQuality = getFeedQuality(context);
   const personalPriorities = context.personalPriorities ?? [];
+  const requiredCryptoWatch = buildCryptoWatchText(context);
+  const requiredMarketSnapshot = buildMarketProxySnapshotText(context);
+  const tacticalWatchItems = buildTacticalActionList(context, newsItems);
 
   return {
     instruction: "Create a NEXUS Daily Briefing in structured JSON. Prioritize high-impact stories and ignore low-quality appointment/personnel/company fluff unless there are not enough better stories.",
     mode,
     requiredSections: Object.values(sectionTitles),
+    userInputContext: {
+      originalInput: context.userInput,
+      normalizedInput: context.normalizedCommand,
+      requiredGreeting: context.requiredGreeting,
+    },
     classificationRules: {
       markets: "Company stock moves, Walmart or other retailer stock/earnings/news, inflation, central banks, oil, dollar, stocks, economy, and treasury stories belong in Market Snapshot or Executive Summary, not World Situation.",
       geopolitics: "War, sanctions, military, diplomacy, border, security, election conflict, oil conflict, Iran, Russia, Ukraine, or regional conflict belong in Geopolitical Risk.",
@@ -177,6 +192,13 @@ function buildPromptPayload(context, mode) {
       marketSources: uniqueValues(marketAssets.map((asset) => asset.source)),
       cryptoSources: uniqueValues(cryptoAssets.map((asset) => asset.source)),
       newsSources: uniqueValues(newsItems.map((item) => item.sourceType)),
+    },
+    exactOutputRequirements: {
+      greeting: context.requiredGreeting,
+      cryptoWatchMustInclude: requiredCryptoWatch,
+      marketSnapshotMustInclude: requiredMarketSnapshot,
+      personalPriorityRecommendation: personalPriorities.length > 0 ? "Use supplied personal priority data only." : NO_PERSONAL_DATA_MESSAGE,
+      tacticalWatchItems,
     },
     markets: marketAssets.map((asset) => ({
       symbol: asset.symbol,
@@ -229,12 +251,16 @@ function buildPromptPayload(context, mode) {
     })),
     outputRules: [
       "Return only JSON matching the schema.",
+      `Greeting must be exactly: "${context.requiredGreeting}"`,
+      `Crypto Watch must include these exact live CoinGecko values and 24h changes: ${requiredCryptoWatch}`,
+      `Market Snapshot must explicitly state these proxy mappings and exact values: ${requiredMarketSnapshot}`,
       "Include source names inline for factual claims, for example '(CNBC Markets)' or '(BBC World)'. Do not put raw URLs into every sentence; URLs are supplied for traceability.",
+      "Every news-driven sentence in World Situation, Geopolitical Risk, Market Snapshot, and AI & Tech Signals must include a source name near the claim.",
       "Do not cite or summarize low-impact appointment/personnel news unless no higher-impact stories are available.",
       "The executive summary should be direct: what happened, why it matters, and what to watch today.",
       "Personal Priority Recommendation must use the exact fallback text if personalDataPolicy.connected is false.",
       "Keep each section clear enough to render as a dashboard bullet.",
-      "Action list must contain practical actions for today.",
+      "Action list must contain 3 to 5 tactical watch items for today, not generic productivity advice.",
       "Mention live proxy symbols when discussing SPX, NDX, XAU, or WTI if relevant.",
       "Include one 'Confidence / Data Quality: ...' sentence in the Executive Summary.",
     ],
@@ -298,14 +324,21 @@ function validateAiBriefing(value, context) {
 
   const feedQuality = getFeedQuality(context);
   const executiveSummary = ensureDataQualityLine(value.executiveSummary, feedQuality);
+  const cryptoWatch = mergeRequiredReadout(buildCryptoWatchText(context), value.cryptoWatch);
+  const greeting = context.requiredGreeting ?? getGreetingForCommand(context.normalizedCommand);
+  const marketSnapshot = mergeRequiredReadout(buildMarketProxySnapshotText(context), value.marketSnapshot);
   const personalPriorityRecommendation = context.personalPriorities?.length
     ? value.personalPriorityRecommendation
     : NO_PERSONAL_DATA_MESSAGE;
+  const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5);
 
   return {
     ...value,
+    actionListForTheDay,
+    cryptoWatch,
     executiveSummary,
-    actionListForTheDay: value.actionListForTheDay.slice(0, 6),
+    greeting,
+    marketSnapshot,
     personalPriorityRecommendation,
   };
 }
@@ -337,7 +370,6 @@ function buildFallbackBriefing({ context, mode, reason }) {
   }
 
   const marketAssets = context.markets.assets ?? [];
-  const cryptoAssets = context.crypto.assets ?? [];
   const newsItems = selectBriefingStories(context.news.newsItems ?? [], mode);
   const strongest = [...marketAssets].sort((a, b) => b.change - a.change)[0];
   const weakest = [...marketAssets].sort((a, b) => a.change - b.change)[0];
@@ -346,24 +378,13 @@ function buildFallbackBriefing({ context, mode, reason }) {
   const geoStory = newsItems.find((item) => item.category === "geopolitics") ?? topStory;
   const marketStory = newsItems.find((item) => item.category === "markets") ?? topStory;
   const aiStory = newsItems.find((item) => item.category === "ai-tech") ?? topStory;
-  const btc = cryptoAssets.find((asset) => asset.symbol === "BTC") ?? cryptoAssets[0];
-  const eth = cryptoAssets.find((asset) => asset.symbol === "ETH") ?? cryptoAssets[1];
-  const sol = cryptoAssets.find((asset) => asset.symbol === "SOL") ?? cryptoAssets[2];
   const priority = context.personalPriorities[0];
   const fallback = {
-    actionListForTheDay: [
-      "Review the top live RSS headlines before making market decisions.",
-      "Watch live proxy market direction across SPY, QQQ, GLD, and USO.",
-      "Keep crypto position sizing disciplined while BTC, ETH, and SOL signals update.",
-      "Use the briefing to identify what changed, why it matters, and what to watch today.",
-    ],
+    actionListForTheDay: buildTacticalActionList(context, newsItems),
     aiTechSignals: aiStory
       ? `${aiStory.source}: ${aiStory.summary} ${aiStory.marketImpact}`
       : techSignals.slice(0, 2).map((signal) => `${signal.label}: ${signal.detail}`).join(" "),
-    cryptoWatch: [btc, eth, sol]
-      .filter(Boolean)
-      .map((asset) => `${asset.symbol} is at ${asset.value} (${formatSigned(asset.change)}). ${asset.note}`)
-      .join(" "),
+    cryptoWatch: buildCryptoWatchText(context),
     executiveSummary:
       topStory && strongest && weakest
         ? `${topStory.title} (${topStory.source}) is the highest-weight headline. ${strongest.name} leads at ${formatSigned(strongest.change)}, while ${weakest.name} is the weakest cross-asset read at ${formatSigned(weakest.change)}. Confidence / Data Quality: Low because OpenAI fallback was used.`
@@ -371,11 +392,11 @@ function buildFallbackBriefing({ context, mode, reason }) {
     geopoliticalRisk: geoStory
       ? `${geoStory.title} (${geoStory.source}): ${geoStory.summary} ${geoStory.whyItMatters} ${geoStory.marketImpact}`
       : "Geopolitical risk should be monitored through energy, shipping, and defense channels.",
-    greeting: "Good morning. NEXUS Intel is online and your daily briefing is ready.",
+    greeting: context.requiredGreeting ?? getGreetingForCommand(context.normalizedCommand),
     headline: "Morning signal: live feeds are online; keep risk disciplined while the news and market picture updates.",
     marketSnapshot:
       strongest && weakest
-        ? `${strongest.name} is the positive signal at ${formatSigned(strongest.change)}. ${weakest.name} is the pressure point at ${formatSigned(weakest.change)}. ${marketStory ? `${marketStory.title} (${marketStory.source}) is the highest-ranked market story. ` : ""}Proxy data remains the live market lens.`
+        ? `${buildMarketProxySnapshotText(context)} ${strongest.name} is the positive signal at ${formatSigned(strongest.change)}. ${weakest.name} is the pressure point at ${formatSigned(weakest.change)}. ${marketStory ? `${marketStory.title} (${marketStory.source}) is the highest-ranked market story. ` : ""}Proxy data remains the live market lens.`
         : "Market data is available through the backend, but no complete strongest or weakest signal was identified.",
     personalPriorityRecommendation: priority ? `${priority.title}: ${priority.nextAction}` : NO_PERSONAL_DATA_MESSAGE,
     worldSituation: worldStory
@@ -388,6 +409,88 @@ function buildFallbackBriefing({ context, mode, reason }) {
 
 function unwrapEnvelope(envelope) {
   return envelope?.data ?? envelope;
+}
+
+function getGreetingForCommand(normalizedCommand) {
+  return normalizedCommand === "good morning" ? "Good morning Sir." : "Hello Sir.";
+}
+
+function buildCryptoWatchText(context) {
+  const cryptoAssets = context.crypto.assets ?? [];
+  const requiredSymbols = ["BTC", "ETH", "SOL"];
+
+  return requiredSymbols
+    .map((symbol) => {
+      const asset = cryptoAssets.find((item) => item.symbol === symbol);
+      if (!asset) return `${symbol}: unavailable.`;
+
+      return `${symbol}: ${asset.value} (${formatSigned(asset.change)} 24h, ${asset.source ?? "crypto feed"}).`;
+    })
+    .join(" ");
+}
+
+function buildMarketProxySnapshotText(context) {
+  const marketAssets = context.markets.assets ?? [];
+  const proxyLabels = [
+    { proxySymbol: "SPY", symbol: "SPX" },
+    { proxySymbol: "QQQ", symbol: "NDX" },
+    { proxySymbol: "GLD", symbol: "XAU" },
+    { proxySymbol: "USO", symbol: "WTI" },
+  ];
+
+  return proxyLabels
+    .map(({ proxySymbol, symbol }) => {
+      const asset = marketAssets.find((item) => item.symbol === symbol);
+      if (!asset) return `${symbol} uses ${proxySymbol}: unavailable.`;
+      if (asset.fallback) {
+        return `${symbol} uses ${proxySymbol}: live proxy unavailable; fallback ${symbol} ${asset.value} (${formatSigned(asset.change)}).`;
+      }
+
+      return `${symbol} uses ${proxySymbol}: ${proxySymbol} ${asset.value} (${formatSigned(asset.change)}).`;
+    })
+    .join(" ");
+}
+
+function buildTacticalActionList(context, newsOrActions = []) {
+  const newsItems = Array.isArray(newsOrActions) && typeof newsOrActions[0] === "object"
+    ? newsOrActions
+    : selectBriefingStories(context.news.newsItems ?? [], "standard");
+  const marketAssets = context.markets.assets ?? [];
+  const spy = marketAssets.find((asset) => asset.symbol === "SPX");
+  const qqq = marketAssets.find((asset) => asset.symbol === "NDX");
+  const gld = marketAssets.find((asset) => asset.symbol === "XAU");
+  const uso = marketAssets.find((asset) => asset.symbol === "WTI");
+  const geoStory = newsItems.find((item) => item.category === "geopolitics");
+  const marketStory = newsItems.find((item) => item.category === "markets");
+  const aiStory = newsItems.find((item) => item.category === "ai-tech");
+  const actions = [
+    geoStory
+      ? `Watch ${geoStory.title} (${geoStory.source}) for energy, shipping, and security spillover.`
+      : "Watch geopolitical RSS updates for sanctions, military, diplomacy, border, and energy-risk headlines.",
+    spy && qqq
+      ? `Track equity proxy direction: SPY ${spy.value} (${formatSigned(spy.change)}) and QQQ ${qqq.value} (${formatSigned(qqq.change)}).`
+      : "Track SPY and QQQ proxy direction for broad risk appetite.",
+    uso && gld
+      ? `Track macro hedges: USO ${uso.value} (${formatSigned(uso.change)}) and GLD ${gld.value} (${formatSigned(gld.change)}).`
+      : "Track USO and GLD proxy moves for oil and gold stress signals.",
+    `${buildCryptoWatchText(context)} Use those 24h changes as the crypto risk-temperature check.`,
+    aiStory
+      ? `Monitor ${aiStory.title} (${aiStory.source}) for AI/chip read-through.`
+      : marketStory
+        ? `Monitor ${marketStory.title} (${marketStory.source}) for market read-through.`
+        : "Monitor the highest-ranked live RSS headline for cross-asset read-through.",
+  ];
+
+  return actions.slice(0, 5);
+}
+
+function mergeRequiredReadout(requiredReadout, generatedText) {
+  const text = typeof generatedText === "string" ? generatedText.trim() : "";
+
+  if (!text) return requiredReadout;
+  if (text.includes(requiredReadout)) return text;
+
+  return `${requiredReadout} ${text}`;
 }
 
 function selectBriefingStories(newsItems, mode) {
