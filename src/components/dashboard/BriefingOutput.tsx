@@ -3,6 +3,7 @@ import { AlertTriangle, Check, Clock3, Copy, FileText, Loader2, RadioTower, Refr
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatLocalTime } from "@/lib/utils";
 import type { GeneratedBriefing } from "@/types/intel";
 
 type BriefingOutputProps = {
@@ -15,6 +16,8 @@ type BriefingOutputProps = {
 };
 
 export function BriefingOutput({ briefing, copied = false, error, isLoading = false, onCopy, onRefresh }: BriefingOutputProps) {
+  const generatedTime = briefing ? formatLocalTime(briefing.generatedAt) : "";
+
   return (
     <Card className="min-h-[22rem]">
       <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -29,7 +32,7 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
           {briefing ? (
             <Badge variant="success" className="gap-1">
               <Clock3 className="size-3" />
-              Generated {briefing.generatedAt}
+              Generated {generatedTime}
             </Badge>
           ) : (
             <Badge variant={error ? "danger" : "secondary"}>{error ? "Error" : "Standby"}</Badge>
@@ -95,7 +98,7 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
               <div className="rounded-lg border border-primary/25 bg-primary/[0.08] p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm uppercase tracking-[0.22em] text-primary">{briefing.mode} mode</p>
-                  <span className="text-xs text-muted-foreground">Generated {briefing.generatedAt}</span>
+                  <span className="text-xs text-muted-foreground">Generated {generatedTime}</span>
                 </div>
                 <p className="mt-2 break-words text-base font-semibold leading-7 text-foreground sm:text-lg">{briefing.headline}</p>
               </div>

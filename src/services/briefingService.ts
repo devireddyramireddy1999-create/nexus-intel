@@ -1,5 +1,4 @@
 import { geopoliticalWatch, riskSignals, techSignals } from "@/data/mockData";
-import { formatTime } from "@/lib/utils";
 import { postBriefing } from "@/services/backendApi";
 import { generateDailyBriefing as generateAIDailyBriefing, type AIDailyBriefing } from "@/services/aiBriefingService";
 import { marketService as defaultMarketService, type MarketService } from "@/services/marketService";
@@ -152,7 +151,7 @@ function mapBriefingToUiBriefing(briefing: Briefing, mode: BriefingMode): Genera
 
   return {
     mode,
-    generatedAt: formatTime(),
+    generatedAt: new Date().toISOString(),
     headline:
       mode === "quick"
         ? "Morning signal: stay constructive, but keep liquidity and geopolitics on the main screen."

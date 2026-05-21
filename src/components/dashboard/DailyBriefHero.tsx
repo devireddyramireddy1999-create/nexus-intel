@@ -3,6 +3,7 @@ import { Cpu, Radar, ShieldAlert, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { riskSignals } from "@/data/mockData";
+import { formatLocalTime } from "@/lib/utils";
 import type { GeneratedBriefing } from "@/types/intel";
 
 type DailyBriefHeroProps = {
@@ -11,6 +12,7 @@ type DailyBriefHeroProps = {
 
 export function DailyBriefHero({ briefing }: DailyBriefHeroProps) {
   const globalRisk = riskSignals[0];
+  const generatedTime = briefing ? formatLocalTime(briefing.generatedAt) : "";
 
   return (
     <motion.section
@@ -24,14 +26,14 @@ export function DailyBriefHero({ briefing }: DailyBriefHeroProps) {
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Badge>NEXUS Daily Brief</Badge>
-            <Badge variant="secondary">Local mock intelligence</Badge>
+            <Badge variant={briefing ? "success" : "secondary"}>{briefing ? "Live briefing" : "Live intelligence"}</Badge>
           </div>
           <h2 className="nexus-text-gradient break-words text-2xl font-semibold leading-tight tracking-normal sm:text-5xl sm:leading-tight">
             {briefing ? briefing.headline : "Command the morning signal before the market opens."}
           </h2>
           <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
             {briefing
-              ? `Generated at ${briefing.generatedAt} in ${briefing.mode.replace("-", " ")} mode.`
+              ? `Generated at ${generatedTime} in ${briefing.mode.replace("-", " ")} mode.`
               : "World news, geopolitics, markets, crypto, AI/tech, and personal priorities are staged for synthesis."}
           </p>
 

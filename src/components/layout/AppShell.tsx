@@ -139,7 +139,7 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
             <Power className="size-3" />
             Briefing Core
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">Daily intelligence synthesis armed for local mock data.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Daily intelligence synthesis armed for live feeds.</p>
         </div>
       </div>
     </div>
@@ -168,7 +168,7 @@ function TopStatus() {
         Autonomous briefing node online
       </div>
       <div className="flex items-center gap-5 text-muted-foreground">
-        <span>Local model data</span>
+        <span>Live intelligence</span>
         <span>{formatTime()}</span>
       </div>
     </div>

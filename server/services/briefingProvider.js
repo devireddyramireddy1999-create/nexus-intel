@@ -63,7 +63,7 @@ export async function generateBriefing({ command = "Good morning", mode = "stand
   try {
     const aiBriefing = await requestOpenAIBriefing({ apiKey, context, mode });
     return {
-      data: mapAiBriefingToUiBriefing(aiBriefing, mode),
+      data: mapAiBriefingToUiBriefing(aiBriefing, mode, context.generatedAt),
       meta: {
         fallback: false,
         source: "openai",
@@ -343,7 +343,7 @@ function validateAiBriefing(value, context) {
   };
 }
 
-function mapAiBriefingToUiBriefing(briefing, mode) {
+function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toISOString()) {
   const sections = [
     { title: sectionTitles.greeting, items: [briefing.greeting] },
     { title: sectionTitles.executiveSummary, items: [briefing.executiveSummary] },
@@ -358,7 +358,7 @@ function mapAiBriefingToUiBriefing(briefing, mode) {
 
   return {
     mode,
-    generatedAt: formatTime(),
+    generatedAt,
     headline: briefing.headline,
     sections: mode === "quick" ? sections.slice(0, 5) : sections,
   };
@@ -404,7 +404,7 @@ function buildFallbackBriefing({ context, mode, reason }) {
       : "World news is available through live RSS feeds, with local fallback ready if feeds degrade.",
   };
 
-  return mapAiBriefingToUiBriefing(fallback, mode);
+  return mapAiBriefingToUiBriefing(fallback, mode, context.generatedAt);
 }
 
 function unwrapEnvelope(envelope) {
@@ -656,11 +656,4 @@ function uniqueValues(values) {
 function formatSigned(value) {
   const sign = value > 0 ? "+" : "";
   return `${sign}${Number(value).toFixed(2)}%`;
-}
-
-function formatTime(date = new Date()) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
 }

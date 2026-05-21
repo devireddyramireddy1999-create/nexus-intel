@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { RiskMeter } from "@/components/dashboard/RiskMeter";
 import { SignalPanel } from "@/components/dashboard/SignalPanel";
 import { TopStories } from "@/components/dashboard/TopStories";
+import { formatLocalTime } from "@/lib/utils";
 import { briefingService } from "@/services/briefingService";
 import type { BriefingMode, GeneratedBriefing } from "@/types/intel";
 
@@ -120,7 +121,7 @@ function formatBriefingForClipboard(briefing: GeneratedBriefing) {
     })
     .join("\n\n");
 
-  return [`NEXUS Daily Brief`, `Generated: ${briefing.generatedAt}`, `Mode: ${briefing.mode}`, briefing.headline, sections].join("\n\n");
+  return [`NEXUS Daily Brief`, `Generated: ${formatLocalTime(briefing.generatedAt)}`, `Mode: ${briefing.mode}`, briefing.headline, sections].join("\n\n");
 }
 
 function MiniStatus({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
