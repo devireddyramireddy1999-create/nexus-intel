@@ -108,9 +108,9 @@ const marketImpactByCategory = {
 };
 
 const categoryKeywords = {
-  geopolitics: ["war", "sanctions", "military", "diplomacy", "border", "security", "election", "conflict"],
-  markets: ["markets", "inflation", "central bank", "oil", "dollar", "stocks", "economy", "treasury"],
-  "ai-tech": ["artificial intelligence", "ai", "chip", "semiconductor", "cybersecurity", "openai", "nvidia", "robot", "android", "software", "technology"],
+  geopolitics: ["war", "sanctions", "military", "diplomacy", "border", "security", "election", "conflict", "iran", "ukraine", "russia"],
+  markets: ["inflation", "central bank", "oil", "dollar", "stocks", "stock", "shares", "economy", "treasury", "earnings", "revenue", "wall street", "yield", "yields", "walmart"],
+  "ai-tech": ["artificial intelligence", "ai", "chip", "chips", "semiconductor", "cybersecurity", "openai", "nvidia"],
 };
 
 const riskKeywords = {
@@ -181,7 +181,7 @@ async function fetchFeedArticles(feed) {
 function normalizeRssArticle({ feed, item, index }) {
   const title = cleanText(item.title) || `${categoryLabels[feed.category]} update`;
   const summary = cleanSummary(item.contentSnippet || item.summary || item.content || title);
-  const source = cleanText(item.creator) || feed.name;
+  const source = feed.name;
   const category = inferCategory({ feedCategory: feed.category, source, summary, title, url: item.link });
   const riskLevel = getRiskLevel(`${title} ${summary}`);
   const importanceScore = getImportanceScore({ category, index, riskLevel, title });
@@ -319,11 +319,24 @@ function buildTechSignals(newsItems) {
 function inferCategory({ source, summary, title, url }) {
   const text = `${title} ${summary} ${source} ${url ?? ""}`.toLowerCase();
 
-  if (hasKeyword(text, categoryKeywords["ai-tech"])) return "ai-tech";
+  if (hasCompanyMarketSignal(text)) return "markets";
   if (hasKeyword(text, categoryKeywords.geopolitics)) return "geopolitics";
+  if (hasMarketMovementSignal(text)) return "markets";
+  if (hasKeyword(text, categoryKeywords["ai-tech"])) return "ai-tech";
   if (hasKeyword(text, categoryKeywords.markets)) return "markets";
 
   return "world";
+}
+
+function hasCompanyMarketSignal(text) {
+  return /\b(walmart|target|amazon|apple|microsoft|tesla|meta|alphabet|google|ibm|oracle|salesforce|netflix|spotify|stellantis|spacex|starlink)\b/.test(text) &&
+    /\b(stock|stocks|shares|earnings|revenue|profit|sales|guidance|outlook|cash flow|market value|turnaround|ipo|investor day)\b/.test(text);
+}
+
+function hasMarketMovementSignal(text) {
+  return /\b(stock|stocks|shares|earnings|revenue|profit|sales|guidance|ipo|investor day|equity stake|equity stakes)\b/.test(text) ||
+    /\b(soar|soars|surge|surges|jump|jumps|pop|pops|fall|falls|drop|drops|slump|slumps)\b/.test(text) &&
+      /\b(market|markets|stock|stocks|shares|wall street|nasdaq|s&p|dow)\b/.test(text);
 }
 
 function limitArticlesByCategory(newsItems) {
@@ -395,6 +408,7 @@ function escapeRegex(value) {
 }
 
 function getImportanceScore({ category, index, riskLevel, title }) {
+  const normalized = title.toLowerCase();
   const baseByCategory = {
     world: 72,
     geopolitics: 78,
@@ -408,7 +422,12 @@ function getImportanceScore({ category, index, riskLevel, title }) {
     critical: 18,
   };
   const lengthBoost = Math.min(Math.floor(title.length / 35), 4);
-  const score = baseByCategory[category] + riskBoost[riskLevel] + lengthBoost - index;
+  const impactBoost =
+    (category === "geopolitics" && /\b(war|sanction|military|diplomacy|border|security|conflict|oil|iran|ukraine|russia)\b/.test(normalized) ? 7 : 0) +
+    (category === "markets" && /\b(walmart|stocks|shares|earnings|inflation|central bank|treasury|oil|dollar|economy)\b/.test(normalized) ? 6 : 0) +
+    (category === "ai-tech" && /\b(artificial intelligence|openai|nvidia|chip|semiconductor|cybersecurity)\b/.test(normalized) ? 5 : 0);
+  const lowImpactPenalty = /\b(appoints|appointment|joins|hiring|promotion|board|chief people|executive appointment)\b/.test(normalized) ? 14 : 0;
+  const score = baseByCategory[category] + riskBoost[riskLevel] + lengthBoost + impactBoost - lowImpactPenalty - index;
 
   return Math.max(55, Math.min(96, score));
 }
