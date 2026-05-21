@@ -90,17 +90,17 @@ app.get("/api/markets", async (_request, response, next) => {
   }
 });
 
-app.get("/api/crypto", async (_request, response, next) => {
+app.get("/api/news", async (_request, response, next) => {
   try {
-    response.json(await withCache("crypto", 60_000, getCryptoData));
+    response.json(await withCache("news", 300_000, getNews));
   } catch (error) {
     next(error);
   }
 });
 
-app.get("/api/news", async (_request, response, next) => {
+app.get("/api/crypto", async (_request, response, next) => {
   try {
-    response.json(await withCache("news", 300_000, getNews));
+    response.json(await withCache("crypto", 60_000, getCryptoData));
   } catch (error) {
     next(error);
   }
@@ -114,6 +114,14 @@ app.post("/api/briefing", async (request, response, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.use("/api", (request, response) => {
+  response.status(404).json({
+    error: {
+      message: `API route not found: ${request.path}`,
+    },
+  });
 });
 
 if (isProduction && existsSync(clientIndexPath)) {

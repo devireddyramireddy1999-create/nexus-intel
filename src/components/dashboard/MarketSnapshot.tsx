@@ -104,7 +104,7 @@ function mergeLiveCryptoAssets(marketAssetsSnapshot: MarketAsset[], cryptoAssets
 }
 
 function isLiveCrypto(meta: ApiMeta | null) {
-  return meta?.source === "coingecko" && meta.fallback === false;
+  return (meta?.source === "coingecko" || meta?.source === "coinbase") && meta.fallback === false;
 }
 
 function isLiveMarkets(meta: ApiMeta | null) {

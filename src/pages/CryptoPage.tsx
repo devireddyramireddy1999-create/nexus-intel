@@ -42,7 +42,7 @@ export function CryptoPage() {
         title="Crypto Radar"
         description="Spot flow, risk appetite, leverage discipline, and protocol-level momentum for the crypto sleeve."
         icon={Coins}
-        badge={loading ? "Loading" : meta?.source === "coingecko" && !meta.fallback ? "Live CoinGecko" : "Fallback on-chain"}
+        badge={loading ? "Loading" : isLiveCrypto(meta) ? getLiveCryptoLabel(meta) : "Fallback on-chain"}
       />
       {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">{getCryptoErrorMessage(meta)}</p> : null}
       <div className="grid gap-5 lg:grid-cols-3">
@@ -108,6 +108,14 @@ export function CryptoPage() {
       </div>
     </>
   );
+}
+
+function isLiveCrypto(meta: ApiMeta | null) {
+  return (meta?.source === "coingecko" || meta?.source === "coinbase") && meta.fallback === false;
+}
+
+function getLiveCryptoLabel(meta: ApiMeta | null) {
+  return meta?.source === "coinbase" ? "Live Coinbase" : "Live CoinGecko";
 }
 
 function getCryptoErrorMessage(meta: ApiMeta) {

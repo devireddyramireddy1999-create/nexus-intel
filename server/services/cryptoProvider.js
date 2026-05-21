@@ -3,6 +3,7 @@ import { getCrypto } from "./marketProvider.js";
 
 const COINGECKO_SIMPLE_PRICE_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true";
+const COINBASE_SPOT_URL = "https://api.coinbase.com/v2/prices";
 
 const coinMap = [
   { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
@@ -13,7 +14,7 @@ const coinMap = [
 export async function getCryptoData() {
   try {
     const livePrices = await fetchCoinGeckoPrices();
-    const crypto = await buildLiveCryptoData(livePrices);
+    const crypto = await buildLiveCryptoData(livePrices, "coingecko");
 
     return {
       data: crypto,
@@ -22,17 +23,31 @@ export async function getCryptoData() {
         source: "coingecko",
       },
     };
-  } catch (error) {
-    const crypto = await getFallbackCryptoData();
+  } catch (coinGeckoError) {
+    try {
+      const livePrices = await fetchCoinbasePrices();
+      const crypto = await buildLiveCryptoData(livePrices, "coinbase");
 
-    return {
-      data: crypto,
-      meta: {
-        error: error instanceof Error ? error.message : "CoinGecko request failed.",
-        fallback: true,
-        source: "mock",
-      },
-    };
+      return {
+        data: crypto,
+        meta: {
+          fallback: false,
+          source: "coinbase",
+          warning: getErrorMessage(coinGeckoError, "CoinGecko request failed."),
+        },
+      };
+    } catch (coinbaseError) {
+      const crypto = await getFallbackCryptoData();
+
+      return {
+        data: crypto,
+        meta: {
+          error: `${getErrorMessage(coinGeckoError, "CoinGecko request failed.")} ${getErrorMessage(coinbaseError, "Coinbase request failed.")}`,
+          fallback: true,
+          source: "mock",
+        },
+      };
+    }
   }
 }
 
@@ -59,14 +74,54 @@ async function fetchCoinGeckoPrices() {
   }
 }
 
-async function buildLiveCryptoData(livePrices) {
+async function fetchCoinbasePrices() {
+  const entries = await Promise.all(
+    coinMap.map(async (coin) => {
+      const payload = await fetchCoinbaseSpotPrice(coin.symbol);
+      const price = Number(payload?.data?.amount);
+
+      if (!Number.isFinite(price) || price <= 0) {
+        throw new Error(`Coinbase response missing ${coin.symbol} price.`);
+      }
+
+      return [coin.id, { usd: price, usd_24h_change: 0, usd_last_updated_at: Math.round(Date.now() / 1000) }];
+    }),
+  );
+
+  return Object.fromEntries(entries);
+}
+
+async function fetchCoinbaseSpotPrice(symbol) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const response = await fetch(`${COINBASE_SPOT_URL}/${symbol}-USD/spot`, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "NEXUS-Intel/0.1",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Coinbase responded with ${response.status} for ${symbol}.`);
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function buildLiveCryptoData(livePrices, provider) {
   const fallback = await getCrypto();
   const liveAssets = fallback.assets.map((asset) => {
     const coin = coinMap.find((item) => item.symbol === asset.symbol);
     const priceData = coin ? livePrices[coin.id] : undefined;
 
     if (!priceData?.usd) {
-      throw new Error(`CoinGecko response missing ${asset.symbol} price.`);
+      throw new Error(`${getProviderLabel(provider)} response missing ${asset.symbol} price.`);
     }
 
     const change = Number(priceData.usd_24h_change ?? 0);
@@ -79,8 +134,8 @@ async function buildLiveCryptoData(livePrices) {
       lastUpdatedAt: priceData.usd_last_updated_at
         ? new Date(priceData.usd_last_updated_at * 1000).toISOString()
         : new Date().toISOString(),
-      note: `Live CoinGecko price. 24h trend is ${trend}.`,
-      source: "CoinGecko",
+      note: getProviderNote(provider, trend),
+      source: getProviderLabel(provider),
       trend,
       value: formatUsd(priceData.usd),
     };
@@ -89,7 +144,7 @@ async function buildLiveCryptoData(livePrices) {
   return {
     assets: liveAssets,
     quotes: liveAssets.map(toQuote),
-    radar: buildLiveRadar(liveAssets),
+    radar: buildLiveRadar(liveAssets, provider),
   };
 }
 
@@ -103,8 +158,9 @@ async function getFallbackCryptoData() {
   };
 }
 
-function buildLiveRadar(assets) {
+function buildLiveRadar(assets, provider) {
   const fallbackBySymbol = new Map(cryptoRadar.map((item) => [item.asset, item]));
+  const providerLabel = getProviderLabel(provider);
 
   return assets.map((asset) => {
     const fallback = fallbackBySymbol.get(asset.symbol);
@@ -112,12 +168,30 @@ function buildLiveRadar(assets) {
 
     return {
       asset: asset.symbol,
-      flow: `Live CoinGecko 24h change is ${formatSigned(asset.change)} with ${direction} price action.`,
+      flow: provider === "coinbase"
+        ? `Live ${providerLabel} spot fallback is available; 24h change is unavailable from this feed.`
+        : `Live ${providerLabel} 24h change is ${formatSigned(asset.change)} with ${direction} price action.`,
       risk: fallback?.risk ?? "Macro liquidity and broad risk appetite remain the main swing factors.",
       score: fallback?.score ?? 70,
       thesis: fallback?.thesis ?? `${asset.name} trend is ${asset.trend} over the last 24 hours.`,
     };
   });
+}
+
+function getProviderLabel(provider) {
+  return provider === "coinbase" ? "Coinbase" : "CoinGecko";
+}
+
+function getProviderNote(provider, trend) {
+  if (provider === "coinbase") {
+    return "Live Coinbase spot price. 24h change is unavailable from fallback feed.";
+  }
+
+  return `Live CoinGecko price. 24h trend is ${trend}.`;
+}
+
+function getErrorMessage(error, fallbackMessage) {
+  return error instanceof Error ? error.message : fallbackMessage;
 }
 
 function toQuote(asset) {
