@@ -97,7 +97,7 @@ export function AccessGate({ children }: AccessGateProps) {
 
 function AccessFrame({ children }: { children: ReactNode }) {
   return (
-    <main className="nexus-shell flex min-h-screen min-h-svh items-center justify-center overflow-x-hidden px-4 py-10">
+    <main className="nexus-shell flex min-h-screen min-h-dvh items-center justify-center overflow-x-hidden px-4 py-10">
       <section className="glass-card panel-line w-full max-w-sm rounded-lg p-5 text-center sm:p-6">{children}</section>
     </main>
   );

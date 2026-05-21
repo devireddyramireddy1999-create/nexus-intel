@@ -1,4 +1,4 @@
-const CACHE_NAME = "nexus-intel-v2";
+const CACHE_NAME = "nexus-intel-v3";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/nexus-icon.svg", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {

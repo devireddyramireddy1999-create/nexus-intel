@@ -9,7 +9,7 @@
   "display_override": ["standalone", "fullscreen"],
   "background_color": "#030711",
   "theme_color": "#03131f",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon-192.png",
