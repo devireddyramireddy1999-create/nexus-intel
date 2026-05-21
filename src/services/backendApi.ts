@@ -16,6 +16,7 @@ import type {
   TechSignal,
   WatchItem,
 } from "@/types/intel";
+import { buildAccessHeaders } from "@/services/accessService";
 import type { MarketAssetQuote } from "@/services/marketService";
 import type { NewsItem } from "@/services/newsService";
 
@@ -58,8 +59,6 @@ type ApiEnvelope<T> = {
   data: T;
   meta: ApiMeta;
 };
-
-const backendOrigin = "http://localhost:8787";
 
 const fallbackMeta: ApiMeta = {
   cached: false,
@@ -106,23 +105,22 @@ async function fetchWithFallback<T>(path: string, fallback: () => T): Promise<Ap
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(resolveApiUrl(path), init);
+  const headers = new Headers(init?.headers);
+  const accessHeaders = buildAccessHeaders();
+
+  for (const [key, value] of Object.entries(accessHeaders)) {
+    headers.set(key, value);
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    headers,
+  });
   if (!response.ok) {
     throw new Error(`Backend request failed: ${response.status}`);
   }
 
   return response.json() as Promise<T>;
-}
-
-function resolveApiUrl(path: string) {
-  if (!path.startsWith("/api")) return path;
-  if (typeof window === "undefined") return path;
-  if (window.location.port === "5173") return path;
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    return `${backendOrigin}${path}`;
-  }
-
-  return path;
 }
 
 function buildMarketsFallback(): MarketsApiData {

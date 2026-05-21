@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Activity, BrainCircuit, ChartCandlestick, Globe2, Home, Landmark, Settings, Target } from "lucide-react";
+import { AccessGate } from "@/components/auth/AccessGate";
 import { AppShell } from "@/components/layout/AppShell";
 import { AITechPage } from "@/pages/AITechPage";
 import { CryptoPage } from "@/pages/CryptoPage";
@@ -44,14 +45,16 @@ function App() {
   }, [activePage]);
 
   return (
-    <AppShell
-      activePage={activePage}
-      navItems={navItems}
-      onNavigate={setActivePage}
-      statusIcon={Landmark}
-    >
-      {page}
-    </AppShell>
+    <AccessGate>
+      <AppShell
+        activePage={activePage}
+        navItems={navItems}
+        onNavigate={setActivePage}
+        statusIcon={Landmark}
+      >
+        {page}
+      </AppShell>
+    </AccessGate>
   );
 }
 

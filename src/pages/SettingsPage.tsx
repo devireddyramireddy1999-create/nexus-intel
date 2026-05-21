@@ -1,9 +1,10 @@
-import { Bell, Database, Moon, Settings, SlidersHorizontal, Wifi } from "lucide-react";
+import { Bell, Database, LockKeyhole, Moon, Settings, SlidersHorizontal, Wifi } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { clearAccessToken } from "@/services/accessService";
 
 const settings = [
   { label: "Dark command mode", value: "Enabled", icon: Moon },
@@ -13,6 +14,11 @@ const settings = [
 ];
 
 export function SettingsPage() {
+  const lockApp = () => {
+    clearAccessToken();
+    window.location.reload();
+  };
+
   return (
     <>
       <PageHeader
@@ -61,6 +67,17 @@ export function SettingsPage() {
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">Active in local mock configuration.</p>
                 </button>
               ))}
+            </div>
+            <Separator className="my-5" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-foreground">Access gate</p>
+                <p className="mt-1 text-sm text-muted-foreground">Lock this browser and require the app access code again.</p>
+              </div>
+              <Button variant="secondary" onClick={lockApp}>
+                <LockKeyhole />
+                Lock App
+              </Button>
             </div>
             <Separator className="my-5" />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
