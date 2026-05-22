@@ -5,15 +5,15 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cryptoRadar as fallbackCryptoRadar, marketAssets } from "@/data/mockData";
 import { formatSigned } from "@/lib/utils";
-import { getCryptoData, type ApiMeta } from "@/services/backendApi";
+import { getCachedCryptoData, getCryptoData, type ApiMeta } from "@/services/backendApi";
 import type { CryptoSignal, MarketAsset } from "@/types/intel";
 
 export function CryptoPage() {
-  const [cryptoAssets, setCryptoAssets] = useState<MarketAsset[]>(marketAssets.filter((asset) => asset.category === "Crypto"));
-  const [radar, setRadar] = useState<CryptoSignal[]>(fallbackCryptoRadar);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [initialState] = useState(() => getCachedCryptoState());
+  const [cryptoAssets, setCryptoAssets] = useState<MarketAsset[]>(initialState.assets);
+  const [radar, setRadar] = useState<CryptoSignal[]>(initialState.radar);
+  const [meta, setMeta] = useState<ApiMeta | null>(initialState.meta);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,9 +42,10 @@ export function CryptoPage() {
         title="Crypto Radar"
         description="Spot flow, risk appetite, leverage discipline, and protocol-level momentum for the crypto sleeve."
         icon={Coins}
-        badge={loading ? "Loading" : isLiveCrypto(meta) ? getLiveCryptoLabel(meta) : "Fallback on-chain"}
+        badge={loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : isLiveCrypto(meta) ? getLiveCryptoLabel(meta) : "Live feeds unavailable — fallback mode"}
       />
       {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">{getCryptoErrorMessage(meta)}</p> : null}
+      {loading && !cryptoAssets.length ? <p className="mb-4 text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
       <div className="grid gap-5 lg:grid-cols-3">
         {cryptoAssets.map((asset) => (
           <Card key={asset.symbol}>
@@ -116,18 +117,28 @@ export function CryptoPage() {
   );
 }
 
+function getCachedCryptoState() {
+  const cached = getCachedCryptoData();
+
+  return {
+    assets: cached?.data.assets ?? [],
+    meta: cached?.meta ?? null,
+    radar: cached?.data.radar ?? [],
+  };
+}
+
 function isLiveCrypto(meta: ApiMeta | null) {
   return (meta?.source === "coingecko" || meta?.source === "coinbase") && meta.fallback === false;
 }
 
 function getLiveCryptoLabel(meta: ApiMeta | null) {
-  return meta?.source === "coinbase" ? "Live Coinbase" : "Live CoinGecko";
+  return meta?.source === "coinbase" ? "Live Coinbase spot" : "Live CoinGecko";
 }
 
 function getCryptoErrorMessage(meta: ApiMeta) {
   if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
-    return "Crypto backend unavailable. Showing local fallback.";
+    return "Crypto backend unavailable after retries. Showing fallback mode.";
   }
 
-  return "Live crypto feed unavailable. Showing local fallback.";
+  return "Live crypto feed unavailable after retries. Showing fallback mode.";
 }

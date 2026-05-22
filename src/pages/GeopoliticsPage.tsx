@@ -4,16 +4,16 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { geopoliticalWatch as fallbackGeopoliticalWatch, riskSignals as fallbackRiskSignals, topStories as fallbackTopStories } from "@/data/mockData";
 import { formatPublishedTime } from "@/lib/utils";
-import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import { getCachedNewsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { IntelligenceStory, RiskSignal, WatchItem } from "@/types/intel";
 
 export function GeopoliticsPage() {
-  const [watch, setWatch] = useState<WatchItem[]>(fallbackGeopoliticalWatch);
-  const [risks, setRisks] = useState<RiskSignal[]>(fallbackRiskSignals);
-  const [stories, setStories] = useState<IntelligenceStory[]>(fallbackTopStories);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [initialState] = useState(() => getCachedNewsState());
+  const [watch, setWatch] = useState<WatchItem[]>(initialState.watch);
+  const [risks, setRisks] = useState<RiskSignal[]>(initialState.risks);
+  const [stories, setStories] = useState<IntelligenceStory[]>(initialState.stories);
+  const [meta, setMeta] = useState<ApiMeta | null>(initialState.meta);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,9 +43,10 @@ export function GeopoliticsPage() {
         title="Global Watch Floor"
         description="Regional pressure, shipping exposure, supply-chain sensitivity, and defense technology demand in one briefing surface."
         icon={Globe2}
-        badge={loading ? "Loading" : meta?.fallback ? "Fallback regions" : "Live RSS"}
+        badge={loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : meta?.fallback ? "Live feeds unavailable — fallback mode" : "Live RSS"}
       />
-      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable. Showing local geopolitical fallback.</p> : null}
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable after retries. Showing fallback mode.</p> : null}
+      {loading && !watch.length && !stories.length ? <p className="mb-4 text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
@@ -118,4 +119,15 @@ export function GeopoliticsPage() {
       </div>
     </>
   );
+}
+
+function getCachedNewsState() {
+  const cached = getCachedNewsData();
+
+  return {
+    meta: cached?.meta ?? null,
+    risks: cached?.data.riskSignals ?? [],
+    stories: cached?.data.stories ?? [],
+    watch: cached?.data.geopoliticalWatch ?? [],
+  };
 }

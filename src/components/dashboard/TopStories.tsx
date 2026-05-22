@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { Newspaper } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { topStories } from "@/data/mockData";
 import { formatPublishedTime } from "@/lib/utils";
-import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import { getCachedNewsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { IntelligenceStory } from "@/types/intel";
 
 const sentimentVariant = {
@@ -15,9 +14,10 @@ const sentimentVariant = {
 } as const;
 
 export function TopStories() {
-  const [stories, setStories] = useState<IntelligenceStory[]>(topStories);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [stories, setStories] = useState<IntelligenceStory[]>(() => getCachedNewsData()?.data.stories ?? []);
+  const [meta, setMeta] = useState<ApiMeta | null>(() => getCachedNewsData()?.meta ?? null);
   const [loading, setLoading] = useState(true);
+  const hasStories = stories.length > 0;
 
   useEffect(() => {
     let active = true;
@@ -49,12 +49,13 @@ export function TopStories() {
             <CardTitle>Signal-Weighted Headlines</CardTitle>
           </div>
           <Badge variant={meta?.fallback ? "warning" : "secondary"}>
-            {loading ? "Loading" : meta?.fallback ? "Fallback" : "Live RSS"}
+            {loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : meta?.fallback ? "Live feeds unavailable — fallback mode" : "Live RSS"}
           </Badge>
         </div>
       </CardHeader>
-      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Backend unavailable. Showing local news fallback.</p> : null}
+      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">News feed unavailable after retries. Showing fallback mode.</p> : null}
       <CardContent className="space-y-3">
+        {loading && !hasStories ? <p className="text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
         {stories.slice(0, 8).map((story) => (
           <article key={story.id} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">

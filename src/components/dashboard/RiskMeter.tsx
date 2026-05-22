@@ -2,14 +2,13 @@ import { useEffect, useState } from "react";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { riskSignals } from "@/data/mockData";
 import { cn } from "@/lib/utils";
-import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import { getCachedNewsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { RiskSignal } from "@/types/intel";
 
 export function RiskMeter() {
-  const [signals, setSignals] = useState<RiskSignal[]>(riskSignals);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [signals, setSignals] = useState<RiskSignal[]>(() => getCachedNewsData()?.data.riskSignals ?? []);
+  const [meta, setMeta] = useState<ApiMeta | null>(() => getCachedNewsData()?.meta ?? null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,9 +40,10 @@ export function RiskMeter() {
           <ShieldAlert className="size-5 shrink-0 text-nexus-ember" />
         </div>
       </CardHeader>
-      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Risk API unavailable. Showing local fallback.</p> : null}
+      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Risk feed unavailable after retries. Showing fallback mode.</p> : null}
       <CardContent className="space-y-4">
-        {loading ? <p className="text-sm text-muted-foreground">Loading risk signals...</p> : null}
+        {loading && !signals.length ? <p className="text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
+        {loading && signals.length ? <p className="text-sm text-muted-foreground">Last live snapshot — refreshing...</p> : null}
         {signals.map((signal) => (
           <div key={signal.label}>
             <div className="mb-2 flex items-center justify-between gap-3">

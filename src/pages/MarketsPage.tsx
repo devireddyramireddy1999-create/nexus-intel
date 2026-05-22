@@ -5,16 +5,17 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { macroTimeline as fallbackMacroTimeline, marketAssets as fallbackMarketAssets, sectorHeat as fallbackSectorHeat } from "@/data/mockData";
+import { macroTimeline as fallbackMacroTimeline, sectorHeat as fallbackSectorHeat } from "@/data/mockData";
 import { formatSigned } from "@/lib/utils";
-import { getMarketsData, type ApiMeta } from "@/services/backendApi";
+import { getCachedMarketsData, getMarketsData, type ApiMeta } from "@/services/backendApi";
 import type { MarketAsset } from "@/types/intel";
 
 export function MarketsPage() {
-  const [assets, setAssets] = useState<MarketAsset[]>(fallbackMarketAssets);
-  const [heat, setHeat] = useState(fallbackSectorHeat);
-  const [macro, setMacro] = useState(fallbackMacroTimeline);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [initialState] = useState(() => getCachedMarketsState());
+  const [assets, setAssets] = useState<MarketAsset[]>(initialState.assets);
+  const [heat, setHeat] = useState<typeof fallbackSectorHeat>(initialState.heat);
+  const [macro, setMacro] = useState<typeof fallbackMacroTimeline>(initialState.macro);
+  const [meta, setMeta] = useState<ApiMeta | null>(initialState.meta);
   const [loading, setLoading] = useState(true);
   const indexes = assets.filter((asset) => asset.category === "Index");
   const commodities = assets.filter((asset) => asset.category === "Commodity" || asset.category === "FX");
@@ -46,9 +47,10 @@ export function MarketsPage() {
         title="Cross-Asset Market Console"
         description="Index momentum, commodity pressure, FX stability, and sector heat scored into a single operating view."
         icon={ChartCandlestick}
-        badge={loading ? "Loading" : isLiveMarkets(meta) ? "Live Finnhub proxies" : "Fallback prices"}
+        badge={loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : isLiveMarkets(meta) ? "Live Finnhub proxies" : "Live feeds unavailable — fallback mode"}
       />
       {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">{getMarketErrorMessage(meta)}</p> : null}
+      {loading && !assets.length ? <p className="mb-4 text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
         <Card>
           <CardHeader>
@@ -147,14 +149,25 @@ export function MarketsPage() {
   );
 }
 
+function getCachedMarketsState() {
+  const cached = getCachedMarketsData();
+
+  return {
+    assets: cached?.data.assets ?? [],
+    heat: cached?.data.sectorHeat ?? [],
+    macro: cached?.data.macroTimeline ?? [],
+    meta: cached?.meta ?? null,
+  };
+}
+
 function isLiveMarkets(meta: ApiMeta | null) {
   return meta?.source === "finnhub" && meta.fallback === false;
 }
 
 function getMarketErrorMessage(meta: ApiMeta) {
   if (meta.error?.startsWith("Backend request failed") || meta.error?.includes("Failed to fetch")) {
-    return "Markets backend unavailable. Showing local fallback.";
+    return "Markets backend unavailable after retries. Showing fallback mode.";
   }
 
-  return "Live market proxy feed unavailable. Showing local fallback.";
+  return "Live market proxy feed unavailable after retries. Showing fallback mode.";
 }

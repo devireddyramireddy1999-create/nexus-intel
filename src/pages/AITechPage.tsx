@@ -4,9 +4,8 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { techSignals as fallbackTechSignals, topStories as fallbackTopStories } from "@/data/mockData";
 import { formatPublishedTime } from "@/lib/utils";
-import { getNewsData, type ApiMeta } from "@/services/backendApi";
+import { getCachedNewsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { IntelligenceStory, TechSignal } from "@/types/intel";
 
 const infrastructureStack = [
@@ -16,9 +15,10 @@ const infrastructureStack = [
 ];
 
 export function AITechPage() {
-  const [signals, setSignals] = useState<TechSignal[]>(fallbackTechSignals);
-  const [stories, setStories] = useState<IntelligenceStory[]>(fallbackTopStories);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [initialState] = useState(() => getCachedAiTechState());
+  const [signals, setSignals] = useState<TechSignal[]>(initialState.signals);
+  const [stories, setStories] = useState<IntelligenceStory[]>(initialState.stories);
+  const [meta, setMeta] = useState<ApiMeta | null>(initialState.meta);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,9 +47,10 @@ export function AITechPage() {
         title="Machine Intelligence Signals"
         description="Compute demand, agent adoption, security governance, and second-order infrastructure beneficiaries."
         icon={BrainCircuit}
-        badge={loading ? "Loading" : meta?.fallback ? "Fallback themes" : "Live RSS"}
+        badge={loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : meta?.fallback ? "Live feeds unavailable — fallback mode" : "Live RSS"}
       />
-      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable. Showing local AI/tech fallback.</p> : null}
+      {meta?.error ? <p className="mb-4 text-xs text-nexus-ember">News backend unavailable after retries. Showing fallback mode.</p> : null}
+      {loading && !signals.length && !stories.length ? <p className="mb-4 text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
@@ -119,4 +120,14 @@ export function AITechPage() {
       </div>
     </>
   );
+}
+
+function getCachedAiTechState() {
+  const cached = getCachedNewsData();
+
+  return {
+    meta: cached?.meta ?? null,
+    signals: cached?.data.techSignals ?? [],
+    stories: cached?.data.stories ?? [],
+  };
 }

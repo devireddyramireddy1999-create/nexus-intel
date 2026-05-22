@@ -24,6 +24,7 @@ export async function getCryptoData() {
       },
     };
   } catch (coinGeckoError) {
+    console.warn("CoinGecko crypto provider failed:", getErrorMessage(coinGeckoError, "CoinGecko request failed."));
     try {
       const livePrices = await fetchCoinbasePrices();
       const crypto = await buildLiveCryptoData(livePrices, "coinbase");
@@ -37,6 +38,7 @@ export async function getCryptoData() {
         },
       };
     } catch (coinbaseError) {
+      console.warn("Coinbase crypto provider failed:", getErrorMessage(coinbaseError, "Coinbase request failed."));
       const crypto = await getFallbackCryptoData();
 
       return {
@@ -53,7 +55,7 @@ export async function getCryptoData() {
 
 async function fetchCoinGeckoPrices() {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
+  const timeout = setTimeout(() => controller.abort(), 12_000);
 
   try {
     const response = await fetch(COINGECKO_SIMPLE_PRICE_URL, {
@@ -101,7 +103,7 @@ async function fetchCoinbasePrices() {
 
 async function fetchCoinbaseSpotPrice(symbol) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
+  const timeout = setTimeout(() => controller.abort(), 10_000);
 
   try {
     const response = await fetch(`${COINBASE_SPOT_URL}/${symbol}-USD/spot`, {

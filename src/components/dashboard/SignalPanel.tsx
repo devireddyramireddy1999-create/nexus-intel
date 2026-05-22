@@ -3,8 +3,8 @@ import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cryptoRadar, geopoliticalWatch, priorities, techSignals } from "@/data/mockData";
-import { getCryptoData, getNewsData, type ApiMeta } from "@/services/backendApi";
+import { priorities } from "@/data/mockData";
+import { getCachedCryptoData, getCachedNewsData, getCryptoData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { CryptoSignal, TechSignal, WatchItem } from "@/types/intel";
 
 type SignalPanelProps = {
@@ -15,10 +15,12 @@ type SignalPanelProps = {
 };
 
 export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanelProps) {
-  const [geoItems, setGeoItems] = useState<WatchItem[]>(geopoliticalWatch);
-  const [techItems, setTechItems] = useState<TechSignal[]>(techSignals);
-  const [cryptoItems, setCryptoItems] = useState<CryptoSignal[]>(cryptoRadar);
-  const [meta, setMeta] = useState<ApiMeta | null>(null);
+  const [geoItems, setGeoItems] = useState<WatchItem[]>(() => getCachedNewsData()?.data.geopoliticalWatch ?? []);
+  const [techItems, setTechItems] = useState<TechSignal[]>(() => getCachedNewsData()?.data.techSignals ?? []);
+  const [cryptoItems, setCryptoItems] = useState<CryptoSignal[]>(() => getCachedCryptoData()?.data.radar ?? []);
+  const [meta, setMeta] = useState<ApiMeta | null>(() =>
+    variant === "crypto" ? getCachedCryptoData()?.meta ?? null : getCachedNewsData()?.meta ?? null,
+  );
   const [loading, setLoading] = useState(variant !== "priority");
 
   useEffect(() => {
@@ -70,10 +72,12 @@ export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanel
             </div>
             <CardTitle className="break-words">{title}</CardTitle>
           </div>
-          <Badge variant={meta?.fallback ? "warning" : "secondary"}>{loading ? "loading" : meta?.fallback ? "fallback" : variant}</Badge>
+          <Badge variant={meta?.fallback ? "warning" : "secondary"}>
+            {loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : meta?.fallback ? "Live feeds unavailable — fallback mode" : variant}
+          </Badge>
         </div>
       </CardHeader>
-      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Backend unavailable. Showing local fallback.</p> : null}
+      {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Live feed unavailable after retries. Showing fallback mode.</p> : null}
       <CardContent>{renderPanel(variant, { cryptoItems, geoItems, loading, techItems })}</CardContent>
     </Card>
   );
@@ -84,7 +88,8 @@ function renderPanel(
   data: { cryptoItems: CryptoSignal[]; geoItems: WatchItem[]; loading: boolean; techItems: TechSignal[] },
 ) {
   if (data.loading) {
-    return <p className="text-sm text-muted-foreground">Loading intelligence feed...</p>;
+    const hasCachedItems = data.cryptoItems.length || data.geoItems.length || data.techItems.length;
+    if (!hasCachedItems) return <p className="text-sm text-muted-foreground">Warming live intelligence feeds...</p>;
   }
 
   if (variant === "geo") {

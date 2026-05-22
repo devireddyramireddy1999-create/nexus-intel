@@ -26,8 +26,10 @@ export type ApiMeta = {
   expiresAt?: string;
   fallback: boolean;
   source: "api" | "coinbase" | "coingecko" | "finnhub" | "local" | "openai" | "rss" | "mock";
+  stale?: boolean;
   ttlMs?: number;
   error?: string;
+  warning?: string;
 };
 
 export type ApiResult<T> = {
@@ -67,6 +69,9 @@ const fallbackMeta: ApiMeta = {
   source: "mock",
 };
 
+const liveCachePrefix = "nexus-live-cache:";
+const retryDelays = [800, 1500, 2500];
+
 export async function getMarketsData(): Promise<ApiResult<MarketsApiData>> {
   return fetchWithFallback("/api/markets", buildMarketsFallback);
 }
@@ -80,18 +85,30 @@ export async function getNewsData(): Promise<ApiResult<NewsApiData>> {
 }
 
 export async function postBriefing<T>(payload: unknown): Promise<ApiResult<T>> {
-  const envelope = await request<ApiEnvelope<T>>("/api/briefing", {
+  return requestWithRetry<ApiEnvelope<T>>("/api/briefing", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
 
-  return envelope;
+export function getCachedMarketsData(): ApiResult<MarketsApiData> | null {
+  return readLiveCache<MarketsApiData>("/api/markets");
+}
+
+export function getCachedCryptoData(): ApiResult<CryptoApiData> | null {
+  return readLiveCache<CryptoApiData>("/api/crypto");
+}
+
+export function getCachedNewsData(): ApiResult<NewsApiData> | null {
+  return readLiveCache<NewsApiData>("/api/news");
 }
 
 async function fetchWithFallback<T>(path: string, fallback: () => T): Promise<ApiResult<T>> {
   try {
-    return await request<ApiEnvelope<T>>(path);
+    const envelope = await requestWithRetry<ApiEnvelope<T>>(path, undefined, shouldRetryEnvelope);
+    writeLiveCache(path, envelope);
+    return envelope;
   } catch (error) {
     return {
       data: fallback(),
@@ -102,6 +119,41 @@ async function fetchWithFallback<T>(path: string, fallback: () => T): Promise<Ap
       },
     };
   }
+}
+
+async function requestWithRetry<T>(
+  path: string,
+  init?: RequestInit,
+  shouldRetryResult: (result: T) => boolean = () => false,
+): Promise<T> {
+  let lastError: unknown;
+  let lastRetryableResult: T | null = null;
+
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    try {
+      const result = await request<T>(path, init);
+
+      if (shouldRetryResult(result) && attempt < retryDelays.length) {
+        lastRetryableResult = result;
+        await delay(retryDelays[attempt]);
+        continue;
+      }
+
+      return result;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < retryDelays.length) {
+        await delay(retryDelays[attempt]);
+      }
+    }
+  }
+
+  if (lastRetryableResult) {
+    return lastRetryableResult;
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Backend route unavailable.");
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -121,6 +173,57 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function shouldRetryEnvelope<T>(result: ApiEnvelope<T>) {
+  return Boolean(result?.meta?.fallback || result?.meta?.source === "mock");
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function readLiveCache<T>(path: string): ApiResult<T> | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(liveCachePrefix + path);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as ApiResult<T>;
+    if (!parsed?.data || parsed.meta?.fallback) return null;
+
+    return {
+      data: parsed.data,
+      meta: {
+        ...parsed.meta,
+        cached: true,
+        stale: true,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeLiveCache<T>(path: string, result: ApiResult<T>) {
+  if (typeof window === "undefined" || result.meta.fallback || result.meta.source === "mock") return;
+
+  try {
+    window.localStorage.setItem(
+      liveCachePrefix + path,
+      JSON.stringify({
+        data: result.data,
+        meta: {
+          ...result.meta,
+          cachedAt: new Date().toISOString(),
+          stale: false,
+        },
+      }),
+    );
+  } catch {
+    // localStorage can be unavailable in private or restricted browser modes.
+  }
 }
 
 function buildMarketsFallback(): MarketsApiData {

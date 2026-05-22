@@ -14,7 +14,9 @@ export async function withCache(key, ttlMs, producer) {
   const produced = await producer();
   const data = isEnvelope(produced) ? produced.data : produced;
   const meta = isEnvelope(produced) ? produced.meta : {};
-  cache.set(key, { createdAt: now, data, meta });
+  if (!meta.fallback) {
+    cache.set(key, { createdAt: now, data, meta });
+  }
 
   return {
     data,
