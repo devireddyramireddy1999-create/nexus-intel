@@ -20,6 +20,8 @@ export type MarketAsset = {
   name: string;
   value: string;
   change: number;
+  changeAvailable?: boolean;
+  changeSource?: string;
   category: "Index" | "Crypto" | "Commodity" | "FX";
   note: string;
   fallback?: boolean;

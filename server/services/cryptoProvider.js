@@ -84,7 +84,15 @@ async function fetchCoinbasePrices() {
         throw new Error(`Coinbase response missing ${coin.symbol} price.`);
       }
 
-      return [coin.id, { usd: price, usd_24h_change: 0, usd_last_updated_at: Math.round(Date.now() / 1000) }];
+      return [
+        coin.id,
+        {
+          changeAvailable: false,
+          changeSource: "unavailable",
+          usd: price,
+          usd_last_updated_at: Math.round(Date.now() / 1000),
+        },
+      ];
     }),
   );
 
@@ -124,17 +132,21 @@ async function buildLiveCryptoData(livePrices, provider) {
       throw new Error(`${getProviderLabel(provider)} response missing ${asset.symbol} price.`);
     }
 
-    const change = Number(priceData.usd_24h_change ?? 0);
-    const trend = getTrend(change);
+    const rawChange = Number(priceData.usd_24h_change);
+    const changeAvailable = typeof priceData.changeAvailable === "boolean" ? priceData.changeAvailable : Number.isFinite(rawChange);
+    const change = changeAvailable ? rawChange : 0;
+    const trend = changeAvailable ? getTrend(change) : "flat";
 
     return {
       ...asset,
       change,
+      changeAvailable,
+      changeSource: changeAvailable ? (priceData.changeSource ?? getProviderChangeSource(provider)) : "unavailable",
       fallback: false,
       lastUpdatedAt: priceData.usd_last_updated_at
         ? new Date(priceData.usd_last_updated_at * 1000).toISOString()
         : new Date().toISOString(),
-      note: getProviderNote(provider, trend),
+      note: getProviderNote(provider, trend, changeAvailable),
       source: getProviderLabel(provider),
       trend,
       value: formatUsd(priceData.usd),
@@ -168,7 +180,7 @@ function buildLiveRadar(assets, provider) {
 
     return {
       asset: asset.symbol,
-      flow: provider === "coinbase"
+      flow: asset.changeAvailable === false
         ? `Live ${providerLabel} spot fallback is available; 24h change is unavailable from this feed.`
         : `Live ${providerLabel} 24h change is ${formatSigned(asset.change)} with ${direction} price action.`,
       risk: fallback?.risk ?? "Macro liquidity and broad risk appetite remain the main swing factors.",
@@ -182,12 +194,16 @@ function getProviderLabel(provider) {
   return provider === "coinbase" ? "Coinbase" : "CoinGecko";
 }
 
-function getProviderNote(provider, trend) {
-  if (provider === "coinbase") {
-    return "Live Coinbase spot price. 24h change is unavailable from fallback feed.";
+function getProviderNote(provider, trend, changeAvailable) {
+  if (!changeAvailable) {
+    return `Live ${getProviderLabel(provider)} spot price. 24h change is unavailable from this feed.`;
   }
 
   return `Live CoinGecko price. 24h trend is ${trend}.`;
+}
+
+function getProviderChangeSource(provider) {
+  return provider === "coinbase" ? "unavailable" : "coingecko_24h";
 }
 
 function getErrorMessage(error, fallbackMessage) {
@@ -200,6 +216,8 @@ function toQuote(asset) {
     name: asset.name,
     price: Number(String(asset.value).replace(/[$,]/g, "")),
     changePercent: asset.change,
+    changeAvailable: asset.changeAvailable,
+    changeSource: asset.changeSource,
     trend: asset.trend ?? getTrend(asset.change),
     category: asset.category,
   };

@@ -54,12 +54,18 @@ export function CryptoPage() {
                   <CardTitle>{asset.name}</CardTitle>
                   <p className="mt-1 text-sm text-muted-foreground">{asset.symbol}</p>
                 </div>
-                <Badge variant={asset.change >= 0 ? "success" : "danger"}>{formatSigned(asset.change)}</Badge>
+                <Badge variant={asset.changeAvailable === false ? "secondary" : asset.change >= 0 ? "success" : "danger"}>
+                  {asset.changeAvailable === false ? "24h n/a" : formatSigned(asset.change)}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-semibold text-foreground">{asset.value}</p>
-              <MarketChart data={asset.series} color={asset.change >= 0 ? "#4bf4a8" : "#ff5f7a"} height={140} />
+              <MarketChart
+                data={asset.series}
+                color={asset.changeAvailable === false ? "#20f6ff" : asset.change >= 0 ? "#4bf4a8" : "#ff5f7a"}
+                height={140}
+              />
               <p className="text-sm leading-6 text-muted-foreground">{asset.note}</p>
             </CardContent>
           </Card>

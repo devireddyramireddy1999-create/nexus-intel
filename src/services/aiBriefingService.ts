@@ -187,6 +187,12 @@ function buildCryptoWatch(cryptoAssets: MarketAssetQuote[]) {
   const leader = [...cryptoAssets].sort((a, b) => b.changePercent - a.changePercent)[0];
   const laggard = [...cryptoAssets].sort((a, b) => a.changePercent - b.changePercent)[0];
 
+  if (cryptoAssets.some((asset) => asset.changeAvailable === false)) {
+    return cryptoAssets
+      .map((asset) => `${asset.symbol}: ${formatUsd(asset.price)}, live ${asset.source ?? "crypto"} spot price. 24h change unavailable.`)
+      .join(" ");
+  }
+
   return `${leader.name} leads crypto at ${formatSigned(leader.changePercent)}. ${laggard.name} is the relative laggard at ${formatSigned(laggard.changePercent)}. Spot-led strength is constructive, but macro dollar pressure remains the key risk.`;
 }
 
@@ -225,4 +231,12 @@ function buildActionList(userPreferences: AIBriefingUserPreferences, riskLevel: 
   }
 
   return actions.slice(0, 5);
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value >= 1000 ? 0 : 2,
+    style: "currency",
+  }).format(value);
 }

@@ -54,8 +54,9 @@ export function MarketSnapshot() {
       {newsMeta?.error ? <p className="mb-3 text-xs text-nexus-ember">{getNewsErrorMessage(newsMeta)}</p> : null}
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {assets.map((asset, index) => {
+          const hasChange = asset.changeAvailable !== false;
           const positive = asset.change >= 0;
-          const color = positive ? "#4bf4a8" : "#ff5f7a";
+          const color = !hasChange ? "#20f6ff" : positive ? "#4bf4a8" : "#ff5f7a";
           return (
             <motion.div
               key={asset.symbol}
@@ -79,11 +80,15 @@ export function MarketSnapshot() {
                     <div
                       className={cn(
                         "flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold",
-                        positive ? "bg-nexus-good/10 text-nexus-good" : "bg-nexus-danger/10 text-nexus-danger",
+                        !hasChange
+                          ? "bg-white/10 text-muted-foreground"
+                          : positive
+                            ? "bg-nexus-good/10 text-nexus-good"
+                            : "bg-nexus-danger/10 text-nexus-danger",
                       )}
                     >
-                      {positive ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
-                      {formatSigned(asset.change)}
+                      {hasChange ? positive ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" /> : null}
+                      {hasChange ? formatSigned(asset.change) : "24h n/a"}
                     </div>
                   </div>
                   <MarketChart data={asset.series} color={color} height={88} className="mt-4" />

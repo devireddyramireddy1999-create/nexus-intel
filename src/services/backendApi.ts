@@ -155,6 +155,8 @@ function toQuote(asset: DashboardMarketAsset): MarketAssetQuote {
     name: asset.name,
     price: Number(asset.value.replace(/[$,]/g, "")),
     changePercent: asset.change,
+    changeAvailable: asset.changeAvailable,
+    changeSource: asset.changeSource,
     trend: asset.change > 0.05 ? "up" : asset.change < -0.05 ? "down" : "flat",
     category: asset.category,
   };

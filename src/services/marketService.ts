@@ -10,6 +10,8 @@ export type MarketAssetQuote = {
   name: string;
   price: number;
   changePercent: number;
+  changeAvailable?: boolean;
+  changeSource?: string;
   trend: MarketTrend;
   category: MarketAssetCategory;
   fallback?: boolean;

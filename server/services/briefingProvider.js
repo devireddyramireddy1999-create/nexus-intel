@@ -121,7 +121,7 @@ async function requestOpenAIBriefing({ apiKey, context, mode }) {
           {
             role: "system",
             content:
-              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. If the user says Good morning, the greeting must be exactly Good morning Sir. Use exact market and crypto values supplied in the prompt. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
+              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. If the user says Good morning, the greeting must be exactly Good morning. Never use Sir. Use exact market and crypto values supplied in the prompt. If crypto 24h change is unavailable, say it is unavailable and do not imply momentum from spot-only data. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
           },
           {
             role: "user",
@@ -215,6 +215,8 @@ function buildPromptPayload(context, mode) {
       name: asset.name,
       value: asset.value,
       change: asset.change,
+      changeAvailable: asset.changeAvailable !== false,
+      changeSource: asset.changeSource ?? "24h",
       note: asset.note,
       source: asset.source,
     })),
@@ -252,7 +254,8 @@ function buildPromptPayload(context, mode) {
     outputRules: [
       "Return only JSON matching the schema.",
       `Greeting must be exactly: "${context.requiredGreeting}"`,
-      `Crypto Watch must include these exact live CoinGecko values and 24h changes: ${requiredCryptoWatch}`,
+      "Never use the word Sir in the greeting or elsewhere.",
+      `Crypto Watch must include these exact live crypto readouts and availability notes: ${requiredCryptoWatch}`,
       `Market Snapshot must explicitly state these proxy mappings and exact values: ${requiredMarketSnapshot}`,
       "Include source names inline for factual claims, for example '(CNBC Markets)' or '(BBC World)'. Do not put raw URLs into every sentence; URLs are supplied for traceability.",
       "Every news-driven sentence in World Situation, Geopolitical Risk, Market Snapshot, and AI & Tech Signals must include a source name near the claim.",
@@ -261,6 +264,7 @@ function buildPromptPayload(context, mode) {
       "Personal Priority Recommendation must use the exact fallback text if personalDataPolicy.connected is false.",
       "Keep each section clear enough to render as a dashboard bullet.",
       "Action list must contain 3 to 5 tactical watch items for today, not generic productivity advice.",
+      "If any crypto 24h change is unavailable, do not say to use 24h changes as a risk-temperature or momentum check.",
       "Mention live proxy symbols when discussing SPX, NDX, XAU, or WTI if relevant.",
       "Include one 'Confidence / Data Quality: ...' sentence in the Executive Summary.",
     ],
@@ -323,14 +327,14 @@ function validateAiBriefing(value, context) {
   }
 
   const feedQuality = getFeedQuality(context);
-  const executiveSummary = ensureDataQualityLine(value.executiveSummary, feedQuality);
-  const cryptoWatch = mergeRequiredReadout(buildCryptoWatchText(context), value.cryptoWatch);
+  const executiveSummary = stripSirHonorific(ensureDataQualityLine(value.executiveSummary, feedQuality));
+  const cryptoWatch = stripSirHonorific(mergeRequiredReadout(buildCryptoWatchText(context), value.cryptoWatch));
   const greeting = context.requiredGreeting ?? getGreetingForCommand(context.normalizedCommand);
-  const marketSnapshot = mergeRequiredReadout(buildMarketProxySnapshotText(context), value.marketSnapshot);
+  const marketSnapshot = stripSirHonorific(mergeRequiredReadout(buildMarketProxySnapshotText(context), value.marketSnapshot));
   const personalPriorityRecommendation = context.personalPriorities?.length
-    ? value.personalPriorityRecommendation
+    ? stripSirHonorific(value.personalPriorityRecommendation)
     : NO_PERSONAL_DATA_MESSAGE;
-  const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5);
+  const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5).map(stripSirHonorific);
 
   return {
     ...value,
@@ -338,8 +342,12 @@ function validateAiBriefing(value, context) {
     cryptoWatch,
     executiveSummary,
     greeting,
+    headline: stripSirHonorific(value.headline),
+    geopoliticalRisk: stripSirHonorific(value.geopoliticalRisk),
+    aiTechSignals: stripSirHonorific(value.aiTechSignals),
     marketSnapshot,
     personalPriorityRecommendation,
+    worldSituation: stripSirHonorific(value.worldSituation),
   };
 }
 
@@ -412,7 +420,7 @@ function unwrapEnvelope(envelope) {
 }
 
 function getGreetingForCommand(normalizedCommand) {
-  return normalizedCommand === "good morning" ? "Good morning Sir." : "Hello Sir.";
+  return normalizedCommand === "good morning" ? "Good morning." : "Hello.";
 }
 
 function buildCryptoWatchText(context) {
@@ -423,8 +431,13 @@ function buildCryptoWatchText(context) {
     .map((symbol) => {
       const asset = cryptoAssets.find((item) => item.symbol === symbol);
       if (!asset) return `${symbol}: unavailable.`;
+      const source = asset.source ?? "crypto feed";
 
-      return `${symbol}: ${asset.value} (${formatSigned(asset.change)} 24h, ${asset.source ?? "crypto feed"}).`;
+      if (asset.changeAvailable === false) {
+        return `${symbol}: ${asset.value}, live ${source} spot price. 24h change unavailable.`;
+      }
+
+      return `${symbol}: ${asset.value} (${formatSigned(asset.change)} 24h, live ${source}).`;
     })
     .join(" ");
 }
@@ -473,7 +486,7 @@ function buildTacticalActionList(context, newsOrActions = []) {
     uso && gld
       ? `Track macro hedges: USO ${uso.value} (${formatSigned(uso.change)}) and GLD ${gld.value} (${formatSigned(gld.change)}).`
       : "Track USO and GLD proxy moves for oil and gold stress signals.",
-    `${buildCryptoWatchText(context)} Use those 24h changes as the crypto risk-temperature check.`,
+    buildCryptoActionText(context),
     aiStory
       ? `Monitor ${aiStory.title} (${aiStory.source}) for AI/chip read-through.`
       : marketStory
@@ -484,6 +497,17 @@ function buildTacticalActionList(context, newsOrActions = []) {
   return actions.slice(0, 5);
 }
 
+function buildCryptoActionText(context) {
+  const cryptoAssets = context.crypto.assets ?? [];
+  const hasUnavailableChange = cryptoAssets.some((asset) => asset.changeAvailable === false);
+
+  if (hasUnavailableChange) {
+    return `${buildCryptoWatchText(context)} Use Coinbase spot prices as a live price check only; wait for CoinGecko 24h change before judging crypto momentum.`;
+  }
+
+  return `${buildCryptoWatchText(context)} Use those 24h changes as the crypto risk-temperature check.`;
+}
+
 function mergeRequiredReadout(requiredReadout, generatedText) {
   const text = typeof generatedText === "string" ? generatedText.trim() : "";
 
@@ -491,6 +515,10 @@ function mergeRequiredReadout(requiredReadout, generatedText) {
   if (text.includes(requiredReadout)) return text;
 
   return `${requiredReadout} ${text}`;
+}
+
+function stripSirHonorific(text) {
+  return typeof text === "string" ? text.replace(/\bSir\b[,.]?\s*/gi, "").trim() : text;
 }
 
 function selectBriefingStories(newsItems, mode) {
