@@ -16,7 +16,7 @@ import type {
   TechSignal,
   WatchItem,
 } from "@/types/intel";
-import { buildAccessHeaders } from "@/services/accessService";
+import { buildAccessHeaders, clearAccessToken } from "@/services/accessService";
 import type { MarketAssetQuote } from "@/services/marketService";
 import type { NewsItem } from "@/services/newsService";
 
@@ -169,6 +169,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   });
   if (!response.ok) {
+    if (response.status === 401) {
+      clearAccessToken();
+    }
+
     throw new Error(`Backend request failed: ${response.status}`);
   }
 

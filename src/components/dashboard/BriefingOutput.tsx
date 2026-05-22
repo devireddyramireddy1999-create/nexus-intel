@@ -11,11 +11,22 @@ type BriefingOutputProps = {
   copied?: boolean;
   error?: string;
   isLoading?: boolean;
+  isSavedBriefing?: boolean;
+  onClear?: () => void;
   onCopy?: () => void;
   onRefresh?: () => void;
 };
 
-export function BriefingOutput({ briefing, copied = false, error, isLoading = false, onCopy, onRefresh }: BriefingOutputProps) {
+export function BriefingOutput({
+  briefing,
+  copied = false,
+  error,
+  isLoading = false,
+  isSavedBriefing = false,
+  onClear,
+  onCopy,
+  onRefresh,
+}: BriefingOutputProps) {
   const generatedTime = briefing ? formatLocalTime(briefing.generatedAt) : "";
 
   return (
@@ -32,7 +43,7 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
           {briefing ? (
             <Badge variant="success" className="gap-1">
               <Clock3 className="size-3" />
-              Generated {generatedTime}
+              {isSavedBriefing ? "Last generated brief" : "Generated"} {generatedTime}
             </Badge>
           ) : (
             <Badge variant={error ? "danger" : "secondary"}>{error ? "Error" : "Standby"}</Badge>
@@ -58,6 +69,16 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
           >
             {copied ? <Check /> : <Copy />}
             {copied ? "Copied" : "Copy Brief"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-w-0 whitespace-normal"
+            onClick={onClear}
+            disabled={!briefing || isLoading}
+          >
+            Clear Brief
           </Button>
         </div>
       </CardHeader>
@@ -98,7 +119,10 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
               <div className="rounded-lg border border-primary/25 bg-primary/[0.08] p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm uppercase tracking-[0.22em] text-primary">{briefing.mode} mode</p>
-                  <span className="text-xs text-muted-foreground">Generated {generatedTime}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isSavedBriefing ? "Last briefing" : "Generated"} {generatedTime}
+                    {briefing.dataQuality ? ` / Data quality: ${briefing.dataQuality}` : ""}
+                  </span>
                 </div>
                 <p className="mt-2 break-words text-base font-semibold leading-7 text-foreground sm:text-lg">{briefing.headline}</p>
               </div>
@@ -131,7 +155,7 @@ export function BriefingOutput({ briefing, copied = false, error, isLoading = fa
               <FileText className="mb-4 size-10 text-nexus-cyan" />
               <p className="text-lg font-semibold text-foreground">No briefing generated yet</p>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                Enter "Good morning" to synthesize the current intelligence stack.
+                Use Generate Morning Brief to synthesize the current intelligence stack, or type a custom command.
               </p>
             </motion.div>
           )}

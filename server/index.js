@@ -62,12 +62,14 @@ app.post("/api/access", (request, response) => {
       return;
     }
 
-    const token = issueAccessToken(String(request.body?.code ?? ""));
+    const access = issueAccessToken(String(request.body?.code ?? ""));
 
     response.json({
       authorized: true,
+      expiresAt: access.expiresAt,
       required: true,
-      token,
+      token: access.token,
+      unlockedAt: access.unlockedAt,
     });
   } catch {
     response.status(401).json({
@@ -110,7 +112,12 @@ app.post("/api/briefing", async (request, response, next) => {
   try {
     const mode = request.body?.mode ?? "standard";
     const command = request.body?.command ?? "Good morning";
-    response.json(await withCache(`briefing:${mode}:${command.trim().toLowerCase()}`, 30_000, () => generateBriefing({ command, mode })));
+    const localGreeting = request.body?.localGreeting;
+    response.json(
+      await withCache(`briefing:${mode}:${command.trim().toLowerCase()}:${String(localGreeting ?? "").trim()}`, 30_000, () =>
+        generateBriefing({ command, localGreeting, mode }),
+      ),
+    );
   } catch (error) {
     next(error);
   }

@@ -4,6 +4,7 @@ import type { PersonalPriorityMemory, UserPreferenceMemory } from "@/services/me
 import type { NewsItem, NewsRiskLevel } from "@/services/newsService";
 
 export type AIBriefingUserPreferences = UserPreferenceMemory & {
+  localGreeting?: string;
   priorities?: PersonalPriorityMemory[];
   suggestedActions?: string[];
 };
@@ -106,7 +107,7 @@ function buildMockDailyBriefing(
   const riskLevel = getAggregateRiskLevel(sortedStories);
 
   return {
-    greeting: "Good morning. NEXUS Intel is online and your daily briefing is ready.",
+    greeting: userPreferences.localGreeting ?? "Good morning, Ram.",
     executiveSummary: buildExecutiveSummary(sortedStories, strongestAsset, weakestAsset, riskLevel),
     worldSituation: buildWorldSituation(worldStories, sortedStories),
     geopoliticalRisk: buildGeopoliticalRisk(geopoliticalStories, userPreferences),
@@ -119,7 +120,7 @@ function buildMockDailyBriefing(
 }
 
 function isMorningCommand(userInput: string) {
-  return userInput.trim().toLowerCase() === "good morning";
+  return Boolean(userInput.trim());
 }
 
 function getAggregateRiskLevel(newsItems: NewsItem[]): NewsRiskLevel {

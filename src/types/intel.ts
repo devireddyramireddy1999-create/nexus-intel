@@ -87,6 +87,7 @@ export type BriefingSection = {
 };
 
 export type GeneratedBriefing = {
+  dataQuality?: string;
   mode: BriefingMode;
   generatedAt: string;
   headline: string;

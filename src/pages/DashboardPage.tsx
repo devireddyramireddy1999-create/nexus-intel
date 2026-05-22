@@ -12,23 +12,26 @@ import { formatLocalTime } from "@/lib/utils";
 import { briefingService } from "@/services/briefingService";
 import type { BriefingMode, GeneratedBriefing } from "@/types/intel";
 
+const savedBriefingKey = "nexus-intel-last-briefing";
+
 export function DashboardPage() {
-  const [mode, setMode] = useState<BriefingMode>("standard");
-  const [briefing, setBriefing] = useState<GeneratedBriefing | null>(null);
+  const [mode, setMode] = useState<BriefingMode>(() => readSavedBriefing()?.mode ?? "standard");
+  const [briefing, setBriefing] = useState<GeneratedBriefing | null>(() => readSavedBriefing());
   const [commandError, setCommandError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [lastBriefCommand, setLastBriefCommand] = useState("");
+  const [isSavedBriefing, setIsSavedBriefing] = useState(() => Boolean(readSavedBriefing()));
   const [copied, setCopied] = useState(false);
 
-  const generateBriefing = async (command: string) => {
+  const generateBriefing = async (command: string, options: { localGreeting?: string } = {}) => {
     setIsGenerating(true);
     setCommandError("");
     setCopied(false);
 
     try {
-      const nextBriefing = await briefingService.generateDailyBriefing({ mode, command });
+      const nextBriefing = await briefingService.generateDailyBriefing({ mode, command, localGreeting: options.localGreeting });
       setBriefing(nextBriefing);
-      setLastBriefCommand(command);
+      setIsSavedBriefing(false);
+      saveBriefing(nextBriefing);
     } catch {
       setCommandError("The briefing service could not generate a briefing from the current data source.");
     } finally {
@@ -38,17 +41,28 @@ export function DashboardPage() {
 
   const handleCommand = async (command: string) => {
     const normalized = normalizeCommand(command);
-    if (normalized === "good morning") {
-      await generateBriefing(command.trim());
+    if (!normalized) {
+      await handleGenerateMorningBrief();
       return;
     }
 
-    setCommandError("Command not recognized by the local briefing core.");
+    await generateBriefing(command.trim(), { localGreeting: getLocalGreeting() });
+  };
+
+  const handleGenerateMorningBrief = async () => {
+    await generateBriefing("Generate Morning Brief", { localGreeting: getLocalGreeting() });
   };
 
   const handleRefresh = async () => {
-    if (!briefing) return;
-    await generateBriefing(lastBriefCommand || "Good morning");
+    await generateBriefing("Refresh Brief", { localGreeting: getLocalGreeting() });
+  };
+
+  const handleClearBrief = () => {
+    clearSavedBriefing();
+    setBriefing(null);
+    setIsSavedBriefing(false);
+    setCopied(false);
+    setCommandError("");
   };
 
   const handleCopyBrief = async () => {
@@ -72,7 +86,15 @@ export function DashboardPage() {
         icon={LayoutDashboard}
         badge="PWA ready"
       />
-      <CommandBar mode={mode} onModeChange={setMode} onSubmit={handleCommand} isLoading={isGenerating} />
+      <CommandBar
+        hasBriefing={Boolean(briefing)}
+        mode={mode}
+        onGenerateMorning={handleGenerateMorningBrief}
+        onModeChange={setMode}
+        onRefreshBrief={handleRefresh}
+        onSubmit={handleCommand}
+        isLoading={isGenerating}
+      />
 
       <div className="grid gap-5">
         <DailyBriefHero briefing={briefing} />
@@ -94,6 +116,8 @@ export function DashboardPage() {
           briefing={briefing}
           error={commandError}
           isLoading={isGenerating}
+          isSavedBriefing={isSavedBriefing}
+          onClear={handleClearBrief}
           copied={copied}
           onCopy={handleCopyBrief}
           onRefresh={handleRefresh}
@@ -113,6 +137,39 @@ function normalizeCommand(command: string) {
   return command.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function getLocalGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good morning, Ram.";
+  if (hour < 17) return "Good afternoon, Ram.";
+  return "Good evening, Ram.";
+}
+
+function readSavedBriefing() {
+  try {
+    const raw = window.localStorage.getItem(savedBriefingKey);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as GeneratedBriefing;
+    if (!parsed?.generatedAt || !parsed.headline || !Array.isArray(parsed.sections)) return null;
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveBriefing(briefing: GeneratedBriefing) {
+  try {
+    window.localStorage.setItem(savedBriefingKey, JSON.stringify(briefing));
+  } catch {
+    // localStorage may be unavailable in private or restricted browser modes.
+  }
+}
+
+function clearSavedBriefing() {
+  window.localStorage.removeItem(savedBriefingKey);
+}
+
 function formatBriefingForClipboard(briefing: GeneratedBriefing) {
   const sections = briefing.sections
     .map((section) => {
@@ -121,7 +178,16 @@ function formatBriefingForClipboard(briefing: GeneratedBriefing) {
     })
     .join("\n\n");
 
-  return [`NEXUS Daily Brief`, `Generated: ${formatLocalTime(briefing.generatedAt)}`, `Mode: ${briefing.mode}`, briefing.headline, sections].join("\n\n");
+  return [
+    `NEXUS Daily Brief`,
+    `Generated: ${formatLocalTime(briefing.generatedAt)}`,
+    `Mode: ${briefing.mode}`,
+    briefing.dataQuality ? `Data quality: ${briefing.dataQuality}` : "",
+    briefing.headline,
+    sections,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function MiniStatus({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {

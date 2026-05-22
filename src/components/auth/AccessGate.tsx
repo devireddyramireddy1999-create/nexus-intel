@@ -2,7 +2,13 @@ import { FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAccessStatus, unlockWithAccessCode } from "@/services/accessService";
+import {
+  ACCESS_LOCK_EVENT,
+  clearAccessToken,
+  getAccessRecord,
+  getAccessStatus,
+  unlockWithAccessCode,
+} from "@/services/accessService";
 
 type AccessGateProps = {
   children: ReactNode;
@@ -13,6 +19,7 @@ export function AccessGate({ children }: AccessGateProps) {
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [accessRequired, setAccessRequired] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
 
   useEffect(() => {
@@ -21,6 +28,7 @@ export function AccessGate({ children }: AccessGateProps) {
     getAccessStatus()
       .then((status) => {
         if (!active) return;
+        setAccessRequired(status.required);
         setUnlocked(!status.required || status.authorized);
       })
       .catch(() => {
@@ -36,6 +44,44 @@ export function AccessGate({ children }: AccessGateProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const handleLock = () => {
+      if (!accessRequired) return;
+
+      setCode("");
+      setError("");
+      setIsChecking(false);
+      setIsSubmitting(false);
+      setUnlocked(false);
+    };
+
+    window.addEventListener(ACCESS_LOCK_EVENT, handleLock);
+
+    return () => {
+      window.removeEventListener(ACCESS_LOCK_EVENT, handleLock);
+    };
+  }, [accessRequired]);
+
+  useEffect(() => {
+    if (!accessRequired || !unlocked) return;
+
+    const record = getAccessRecord();
+
+    if (!record) {
+      setUnlocked(false);
+      return;
+    }
+
+    const delay = Date.parse(record.expiresAt) - Date.now();
+    const timer = window.setTimeout(() => {
+      clearAccessToken();
+    }, Math.max(0, delay));
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [accessRequired, unlocked]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -43,6 +89,7 @@ export function AccessGate({ children }: AccessGateProps) {
 
     try {
       const status = await unlockWithAccessCode(code.trim());
+      setAccessRequired(status.required);
       setUnlocked(!status.required || status.authorized);
       setCode("");
     } catch {

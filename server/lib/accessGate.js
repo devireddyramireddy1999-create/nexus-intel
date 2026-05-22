@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 const ACCESS_HEADER = "x-nexus-access";
-const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 export function getAccessStatus(request) {
   const required = isAccessGateEnabled();
@@ -23,15 +23,21 @@ export function issueAccessToken(code) {
     throw new Error("Invalid access code.");
   }
 
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + TOKEN_TTL_MS;
   const payload = encodeBase64Url(
     JSON.stringify({
-      exp: Date.now() + TOKEN_TTL_MS,
-      iat: Date.now(),
+      exp: expiresAt,
+      iat: issuedAt,
     }),
   );
   const signature = sign(payload);
 
-  return `${payload}.${signature}`;
+  return {
+    expiresAt: new Date(expiresAt).toISOString(),
+    token: `${payload}.${signature}`,
+    unlockedAt: new Date(issuedAt).toISOString(),
+  };
 }
 
 export function requireAppAccess(request, response, next) {

@@ -29,6 +29,7 @@ export type Briefing = {
 export type BriefingRequest = {
   mode: BriefingMode;
   command?: string;
+  localGreeting?: string;
 };
 
 export interface BriefingService {
@@ -45,7 +46,7 @@ export type BriefingServiceDependencies = {
 class NexusBriefingService implements BriefingService {
   constructor(private readonly dependencies: BriefingServiceDependencies) {}
 
-  async generateBriefing({ mode, command = "" }: BriefingRequest) {
+  async generateBriefing({ mode, command = "", localGreeting }: BriefingRequest) {
     const [topStories, markets, marketSummary, userMemory] = await Promise.all([
       this.dependencies.newsService.getTopStories({ limit: mode === "quick" ? 3 : 5, minImportanceScore: 70 }),
       this.dependencies.marketService.getMarketSnapshot(),
@@ -56,6 +57,7 @@ class NexusBriefingService implements BriefingService {
     const globalRisk = buildGlobalRisk();
     const aiBriefing = await generateAIDailyBriefing(command, topStories, markets, {
       ...userMemory.preferences,
+      localGreeting,
       priorities: userMemory.priorities,
       suggestedActions: userMemory.suggestedActions,
     });
@@ -150,6 +152,7 @@ function mapBriefingToUiBriefing(briefing: Briefing, mode: BriefingMode): Genera
   }
 
   return {
+    dataQuality: "Low",
     mode,
     generatedAt: new Date().toISOString(),
     headline:

@@ -36,16 +36,13 @@ const sectionTitles = {
   actionListForTheDay: "Action List For The Day",
 };
 
-export async function generateBriefing({ command = "Good morning", mode = "standard" }) {
+export async function generateBriefing({ command = "Good morning", localGreeting, mode = "standard" }) {
   const normalized = command.trim().replace(/\s+/g, " ").toLowerCase();
-  if (normalized !== "good morning") {
-    throw new Error("Unsupported briefing command.");
-  }
 
   const context = await gatherBriefingContext({
     command,
     normalizedCommand: normalized,
-    requiredGreeting: getGreetingForCommand(normalized),
+    requiredGreeting: getGreetingForCommand(normalized, localGreeting),
   });
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
@@ -62,8 +59,9 @@ export async function generateBriefing({ command = "Good morning", mode = "stand
 
   try {
     const aiBriefing = await requestOpenAIBriefing({ apiKey, context, mode });
+    const dataQuality = getFeedQuality(context);
     return {
-      data: mapAiBriefingToUiBriefing(aiBriefing, mode, context.generatedAt),
+      data: mapAiBriefingToUiBriefing(aiBriefing, mode, context.generatedAt, dataQuality),
       meta: {
         fallback: false,
         source: "openai",
@@ -121,7 +119,7 @@ async function requestOpenAIBriefing({ apiKey, context, mode }) {
           {
             role: "system",
             content:
-              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. If the user says Good morning, the greeting must be exactly Good morning. Never use Sir. Use exact market and crypto values supplied in the prompt. If crypto 24h change is unavailable, say it is unavailable and do not imply momentum from spot-only data. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
+              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. The greeting must exactly match the required greeting supplied in the prompt, such as Good morning, Ram. Never use Sir. Use exact market and crypto values supplied in the prompt. If crypto 24h change is unavailable, say it is unavailable and do not imply momentum from spot-only data. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
           },
           {
             role: "user",
@@ -351,7 +349,7 @@ function validateAiBriefing(value, context) {
   };
 }
 
-function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toISOString()) {
+function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toISOString(), dataQuality = "Low") {
   const sections = [
     { title: sectionTitles.greeting, items: [briefing.greeting] },
     { title: sectionTitles.executiveSummary, items: [briefing.executiveSummary] },
@@ -365,6 +363,7 @@ function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toIS
   ];
 
   return {
+    dataQuality,
     mode,
     generatedAt,
     headline: briefing.headline,
@@ -412,15 +411,31 @@ function buildFallbackBriefing({ context, mode, reason }) {
       : "World news is available through live RSS feeds, with local fallback ready if feeds degrade.",
   };
 
-  return mapAiBriefingToUiBriefing(fallback, mode, context.generatedAt);
+  return mapAiBriefingToUiBriefing(fallback, mode, context.generatedAt, getFeedQuality(context, true));
 }
 
 function unwrapEnvelope(envelope) {
   return envelope?.data ?? envelope;
 }
 
-function getGreetingForCommand(normalizedCommand) {
-  return normalizedCommand === "good morning" ? "Good morning." : "Hello.";
+function isBriefingIntent(normalizedCommand) {
+  return ["", "good morning", "generate morning brief", "morning brief", "refresh brief"].includes(normalizedCommand);
+}
+
+function getGreetingForCommand(normalizedCommand, localGreeting) {
+  const greeting = sanitizeGreeting(localGreeting);
+  if (greeting) return greeting;
+
+  return isBriefingIntent(normalizedCommand) ? "Good morning, Ram." : "Hello, Ram.";
+}
+
+function sanitizeGreeting(value) {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  if (!/^(Good morning|Good afternoon|Good evening), Ram\.$/.test(trimmed)) return "";
+
+  return trimmed;
 }
 
 function buildCryptoWatchText(context) {

@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Command, Loader2, Sparkles } from "lucide-react";
+import { ArrowUpRight, Command, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BriefingMode } from "@/types/intel";
@@ -8,8 +8,11 @@ import type { BriefingMode } from "@/types/intel";
 type CommandBarProps = {
   isLoading?: boolean;
   mode: BriefingMode;
+  onGenerateMorning: () => void | Promise<void>;
   onModeChange: (mode: BriefingMode) => void;
+  onRefreshBrief: () => void | Promise<void>;
   onSubmit: (command: string) => void | Promise<void>;
+  hasBriefing?: boolean;
 };
 
 const modes: { key: BriefingMode; label: string }[] = [
@@ -18,7 +21,15 @@ const modes: { key: BriefingMode; label: string }[] = [
   { key: "deep", label: "Deep Dive" },
 ];
 
-export function CommandBar({ isLoading = false, mode, onModeChange, onSubmit }: CommandBarProps) {
+export function CommandBar({
+  hasBriefing = false,
+  isLoading = false,
+  mode,
+  onGenerateMorning,
+  onModeChange,
+  onRefreshBrief,
+  onSubmit,
+}: CommandBarProps) {
   const [value, setValue] = useState("");
 
   const handleSubmit = async (event: FormEvent) => {
@@ -35,13 +46,27 @@ export function CommandBar({ isLoading = false, mode, onModeChange, onSubmit }: 
       transition={{ duration: 0.4 }}
     >
       <form className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center" onSubmit={handleSubmit}>
+        <Button type="button" className="h-11 min-w-0 whitespace-normal lg:h-10" onClick={onGenerateMorning} disabled={isLoading}>
+          {isLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+          Generate Morning Brief
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 min-w-0 whitespace-normal lg:h-10"
+          onClick={onRefreshBrief}
+          disabled={!hasBriefing || isLoading}
+        >
+          <RefreshCw className={isLoading ? "animate-spin" : ""} />
+          Refresh Brief
+        </Button>
         <div className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md border border-nexus-cyan/25 bg-black/30 px-3 lg:min-h-11">
           <Command className="size-4 shrink-0 text-nexus-cyan" />
           <Input
             className="h-10 min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Good morning"
+            placeholder="Optional command"
             aria-label="NEXUS command input"
             disabled={isLoading}
           />
@@ -61,7 +86,7 @@ export function CommandBar({ isLoading = false, mode, onModeChange, onSubmit }: 
             </Button>
           ))}
         </div>
-        <Button type="submit" className="h-11 min-w-0 whitespace-normal lg:h-10 lg:w-auto" disabled={isLoading}>
+        <Button type="submit" variant="secondary" className="h-11 min-w-0 whitespace-normal lg:h-10 lg:w-auto" disabled={isLoading}>
           {isLoading ? (
             <>
               <Loader2 className="animate-spin" />
@@ -69,7 +94,7 @@ export function CommandBar({ isLoading = false, mode, onModeChange, onSubmit }: 
             </>
           ) : (
             <>
-              Generate
+              Run Command
               <ArrowUpRight />
             </>
           )}

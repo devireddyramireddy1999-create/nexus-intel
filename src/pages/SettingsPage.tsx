@@ -16,7 +16,6 @@ const settings = [
 export function SettingsPage() {
   const lockApp = () => {
     clearAccessToken();
-    window.location.reload();
   };
 
   return (
@@ -76,7 +75,7 @@ export function SettingsPage() {
               </div>
               <Button variant="secondary" onClick={lockApp}>
                 <LockKeyhole />
-                Lock App
+                Lock NEXUS
               </Button>
             </div>
             <Separator className="my-5" />
