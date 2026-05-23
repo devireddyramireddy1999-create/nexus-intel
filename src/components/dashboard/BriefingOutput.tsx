@@ -33,7 +33,7 @@ export function BriefingOutput({
     <Card className="min-h-[22rem]">
       <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.26em] text-nexus-cyan">
+          <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.26em] text-nexus-champagne">
             <RadioTower className="size-4" />
             Briefing Stream
           </div>
@@ -41,7 +41,7 @@ export function BriefingOutput({
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {briefing ? (
-            <Badge variant="success" className="gap-1">
+            <Badge className="gap-1">
               <Clock3 className="size-3" />
               {isSavedBriefing ? "Last generated brief" : "Generated"} {generatedTime}
             </Badge>
@@ -101,7 +101,7 @@ export function BriefingOutput({
               exit={{ opacity: 0 }}
               className="flex min-h-[15rem] flex-col items-center justify-center rounded-lg border border-primary/25 bg-primary/[0.05] p-6 text-center"
             >
-              <Loader2 className="mb-4 size-10 animate-spin text-nexus-cyan" />
+              <Loader2 className="mb-4 size-10 animate-spin text-nexus-champagne" />
               <p className="text-lg font-semibold text-foreground">Generating daily brief</p>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
                 NEXUS is synthesizing live news, markets, crypto, AI/tech, and personal priorities.
@@ -135,7 +135,7 @@ export function BriefingOutput({
                     {section.items.map((item) => (
                       <li
                         key={item}
-                        className="min-w-0 break-words rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-sm leading-6 text-foreground"
+                        className="min-w-0 break-words rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2 text-sm leading-6 text-foreground"
                       >
                         {item}
                       </li>
@@ -150,9 +150,9 @@ export function BriefingOutput({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex min-h-[15rem] flex-col items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.025] p-6 text-center"
+              className="flex min-h-[15rem] flex-col items-center justify-center rounded-lg border border-dashed border-primary/20 bg-primary/[0.025] p-6 text-center"
             >
-              <FileText className="mb-4 size-10 text-nexus-cyan" />
+              <FileText className="mb-4 size-10 text-nexus-champagne" />
               <p className="text-lg font-semibold text-foreground">No briefing generated yet</p>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
                 Use Generate Morning Brief to synthesize the current intelligence stack, or type a custom command.

@@ -24,11 +24,11 @@ export function AppShell({ activePage, children, navItems, onNavigate, statusIco
 
   return (
     <div className="nexus-shell min-h-screen min-h-dvh">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-white/10 bg-black/45 backdrop-blur-xl lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-primary/20 bg-[#030303]/92 backdrop-blur-xl lg:block">
         <Sidebar activePage={activePage} navItems={navItems} onNavigate={navigate} statusIcon={StatusIcon} />
       </aside>
 
-      <header className="mobile-safe-top sticky top-0 z-30 border-b border-white/10 bg-background/72 backdrop-blur-xl lg:hidden">
+      <header className="mobile-safe-top sticky top-0 z-30 border-b border-primary/20 bg-[#030303]/88 backdrop-blur-xl lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Brand statusIcon={StatusIcon} compact />
           <Button variant="secondary" size="icon" aria-label="Open navigation" onClick={() => setOpen(true)}>
@@ -46,7 +46,7 @@ export function AppShell({ activePage, children, navItems, onNavigate, statusIco
             exit={{ opacity: 0 }}
           >
             <motion.aside
-              className="h-full w-[min(88vw,20rem)] border-r border-white/10 bg-[#050a12] shadow-panel"
+              className="h-full w-[min(88vw,20rem)] border-r border-primary/20 bg-[#050505] shadow-panel"
               initial={{ x: -320 }}
               animate={{ x: 0 }}
               exit={{ x: -320 }}
@@ -91,7 +91,7 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
     <div className={cn("flex h-full flex-col px-4 py-5", mobile && "h-[calc(100%-4rem)] py-3")}>
       {!mobile ? <Brand statusIcon={StatusIcon} /> : null}
 
-      <div className="mt-8 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+      <div className="mt-8 rounded-lg border border-primary/20 bg-[#0e0e0e]/80 p-3">
         <div className="flex items-center justify-between text-xs uppercase tracking-[0.28em] text-muted-foreground">
           <span>System</span>
           <span className="flex items-center gap-1 text-nexus-good">
@@ -100,11 +100,11 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
           </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-md border border-white/10 bg-black/20 p-2">
+          <div className="rounded-md border border-primary/20 bg-[#080808] p-2">
             <p className="text-muted-foreground">Latency</p>
             <p className="font-semibold text-foreground">18 ms</p>
           </div>
-          <div className="rounded-md border border-white/10 bg-black/20 p-2">
+          <div className="rounded-md border border-primary/20 bg-[#080808] p-2">
             <p className="text-muted-foreground">Sources</p>
             <p className="font-semibold text-foreground">Mixed</p>
           </div>
@@ -120,8 +120,8 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
               key={item.key}
               className={cn(
                 "group flex h-11 min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm font-medium text-muted-foreground transition",
-                "hover:bg-white/[0.07] hover:text-foreground",
-                active && "bg-primary/[0.12] text-primary shadow-[inset_0_0_0_1px_rgba(32,246,255,0.24)]",
+                "hover:bg-primary/[0.07] hover:text-foreground",
+                active && "bg-[#120f08] text-nexus-champagne shadow-[inset_0_0_0_1px_rgba(201,166,70,0.28),0_0_22px_rgba(201,166,70,0.12)]",
               )}
               onClick={() => onNavigate(item.key)}
             >
@@ -134,8 +134,8 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
 
       <div className="mt-auto">
         <Separator className="mb-4" />
-        <div className="rounded-lg border border-nexus-cyan/20 bg-nexus-cyan/5 p-3">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-nexus-cyan">
+        <div className="rounded-lg border border-primary/25 bg-[#0e0e0e]/90 p-3">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-nexus-champagne">
             <Power className="size-3" />
             Briefing Core
           </div>
@@ -149,7 +149,7 @@ function Sidebar({ activePage, navItems, onNavigate, statusIcon: StatusIcon, mob
 function Brand({ statusIcon: StatusIcon, compact = false }: { statusIcon: React.ElementType; compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex size-10 items-center justify-center rounded-lg border border-nexus-cyan/40 bg-nexus-cyan/10 text-nexus-cyan shadow-glow">
+      <div className="flex size-10 items-center justify-center rounded-lg border border-primary/35 bg-[#14120e] text-nexus-champagne shadow-glow">
         <StatusIcon className="size-5" />
       </div>
       <div>
@@ -162,7 +162,7 @@ function Brand({ statusIcon: StatusIcon, compact = false }: { statusIcon: React.
 
 function TopStatus() {
   return (
-    <div className="mb-5 hidden items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] px-4 py-3 text-sm backdrop-blur-xl lg:flex">
+    <div className="mb-5 hidden items-center justify-between rounded-lg border border-primary/20 bg-[#0e0e0e]/82 px-4 py-3 text-sm backdrop-blur-xl lg:flex">
       <div className="flex items-center gap-2 text-muted-foreground">
         <span className="h-2 w-2 rounded-full bg-nexus-good shadow-[0_0_12px_rgba(75,244,168,0.7)]" />
         Autonomous briefing node online
@@ -177,7 +177,7 @@ function TopStatus() {
 
 function InstallHint() {
   return (
-    <p className="mt-6 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2 text-center text-xs leading-5 text-muted-foreground">
+    <p className="mt-6 rounded-lg border border-primary/20 bg-[#0e0e0e]/70 px-3 py-2 text-center text-xs leading-5 text-muted-foreground">
       Install from Safari: Share → Add to Home Screen
     </p>
   );
@@ -187,7 +187,7 @@ function MobileBottomNav({ activePage, navItems, onNavigate }: Pick<AppShellProp
   const mobileItems = navItems.slice(0, 5);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#030711]/92 px-2 pb-[env(safe-area-inset-bottom)] shadow-panel backdrop-blur-xl lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-primary/20 bg-[#030303]/96 px-2 pb-[env(safe-area-inset-bottom)] shadow-panel backdrop-blur-xl lg:hidden">
       <div className="mx-auto grid h-16 max-w-md grid-cols-5 gap-1">
         {mobileItems.map((item) => {
           const Icon = item.icon;
@@ -199,8 +199,8 @@ function MobileBottomNav({ activePage, navItems, onNavigate }: Pick<AppShellProp
               type="button"
               className={cn(
                 "flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-[0.68rem] font-medium leading-none text-muted-foreground transition",
-                "hover:bg-white/[0.07] hover:text-foreground",
-                active && "bg-primary/[0.12] text-primary shadow-[inset_0_0_0_1px_rgba(32,246,255,0.18)]",
+                "hover:bg-primary/[0.07] hover:text-foreground",
+                active && "bg-[#120f08] text-nexus-champagne shadow-[inset_0_0_0_1px_rgba(201,166,70,0.24),0_0_18px_rgba(201,166,70,0.1)]",
               )}
               onClick={() => onNavigate(item.key)}
               aria-current={active ? "page" : undefined}
@@ -219,10 +219,10 @@ function PhoneLandscapeGuard() {
   return (
     <div className="phone-landscape-guard" role="status" aria-live="polite">
       <div className="flex max-w-sm flex-col items-center text-center">
-        <div className="mb-4 flex size-12 items-center justify-center rounded-lg border border-nexus-cyan/35 bg-nexus-cyan/10 text-nexus-cyan shadow-glow">
+        <div className="mb-4 flex size-12 items-center justify-center rounded-lg border border-primary/35 bg-[#14120e] text-nexus-champagne shadow-glow">
           <RotateCcw className="size-6" />
         </div>
-        <p className="text-xs uppercase tracking-[0.28em] text-nexus-cyan">Portrait Mode</p>
+        <p className="text-xs uppercase tracking-[0.28em] text-nexus-champagne">Portrait Mode</p>
         <p className="mt-3 text-lg font-semibold text-foreground">Rotate your phone to portrait to use NEXUS Intel.</p>
       </div>
     </div>

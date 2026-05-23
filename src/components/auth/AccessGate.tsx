@@ -102,7 +102,7 @@ export function AccessGate({ children }: AccessGateProps) {
   if (isChecking) {
     return (
       <AccessFrame>
-        <Loader2 className="size-8 animate-spin text-nexus-cyan" />
+        <Loader2 className="size-8 animate-spin text-nexus-champagne" />
         <p className="mt-4 text-sm text-muted-foreground">Checking NEXUS access...</p>
       </AccessFrame>
     );
@@ -114,10 +114,10 @@ export function AccessGate({ children }: AccessGateProps) {
 
   return (
     <AccessFrame>
-      <div className="mx-auto flex size-12 items-center justify-center rounded-lg border border-nexus-cyan/35 bg-nexus-cyan/10 text-nexus-cyan shadow-glow">
+      <div className="mx-auto flex size-12 items-center justify-center rounded-lg border border-nexus-champagne/35 bg-nexus-champagne/10 text-nexus-champagne shadow-glow">
         <LockKeyhole className="size-6" />
       </div>
-      <p className="mt-5 text-xs uppercase tracking-[0.28em] text-nexus-cyan">Protected App</p>
+      <p className="mt-5 text-xs uppercase tracking-[0.28em] text-nexus-champagne">Protected App</p>
       <h1 className="mt-2 text-2xl font-semibold text-foreground">NEXUS Intel</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
         Enter the access code to unlock the dashboard and protected briefing APIs.

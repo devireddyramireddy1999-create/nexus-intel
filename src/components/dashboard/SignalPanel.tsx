@@ -66,7 +66,7 @@ export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanel
       <CardHeader>
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-2 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.22em] text-nexus-cyan sm:tracking-[0.26em]">
+            <div className="mb-2 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.22em] text-nexus-champagne sm:tracking-[0.26em]">
               <Icon className="size-4 shrink-0" />
               {eyebrow}
             </div>
@@ -96,7 +96,7 @@ function renderPanel(
     return (
       <div className="space-y-3">
         {data.geoItems.slice(0, 3).map((item) => (
-          <div key={item.region} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+          <div key={item.region} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="break-words text-sm font-semibold text-foreground">{item.region}</p>
               <Badge variant={item.severity === "High" ? "warning" : "secondary"}>{item.severity}</Badge>
@@ -130,7 +130,7 @@ function renderPanel(
     return (
       <div className="space-y-3">
         {data.cryptoItems.map((item) => (
-          <div key={item.asset} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+          <div key={item.asset} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="break-words text-sm font-semibold text-foreground">{item.asset}</p>
               <Badge>{item.score}</Badge>
@@ -146,7 +146,7 @@ function renderPanel(
   return (
     <div className="space-y-3">
       {priorities.map((item) => (
-        <div key={item.title} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+        <div key={item.title} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="break-words text-sm font-semibold text-foreground">{item.title}</p>
             <Badge variant="secondary">{item.due}</Badge>

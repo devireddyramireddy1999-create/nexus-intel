@@ -195,7 +195,7 @@ function MiniStatus({ label, value, icon: Icon }: { label: string; value: string
     <div className="glass-card min-w-0 rounded-lg p-4">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <p className="min-w-0 break-words text-xs uppercase tracking-[0.2em] text-muted-foreground sm:tracking-[0.24em]">{label}</p>
-        <Icon className="size-4 text-nexus-cyan" />
+        <Icon className="size-4 text-nexus-champagne" />
       </div>
       <p className="mt-3 break-words text-2xl font-semibold text-foreground">{value}</p>
     </div>

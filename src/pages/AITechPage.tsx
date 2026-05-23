@@ -58,7 +58,7 @@ export function AITechPage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             {signals.map((signal) => (
-              <article key={signal.label} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
+              <article key={signal.label} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
                 <Badge>{signal.label}</Badge>
                 <h2 className="mt-3 text-base font-semibold leading-6 text-foreground">{signal.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{signal.detail}</p>
@@ -82,10 +82,10 @@ export function AITechPage() {
             {infrastructureStack.map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.label} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
+                <div key={item.label} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Icon className="size-4 text-nexus-cyan" />
+                      <Icon className="size-4 text-nexus-champagne" />
                       <p className="text-sm font-semibold text-foreground">{item.label}</p>
                     </div>
                     <span className="text-sm text-muted-foreground">{item.value}</span>
@@ -111,7 +111,7 @@ export function AITechPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-6 text-muted-foreground">{story.summary}</p>
-                <p className="mt-3 rounded-md border border-nexus-cyan/20 bg-nexus-cyan/5 p-3 text-sm leading-6 text-foreground">
+                <p className="mt-3 rounded-md border border-nexus-champagne/20 bg-nexus-champagne/5 p-3 text-sm leading-6 text-foreground">
                   {story.impact}
                 </p>
               </CardContent>

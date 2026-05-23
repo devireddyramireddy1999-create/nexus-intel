@@ -32,16 +32,16 @@ export function SettingsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>System State</CardTitle>
-              <SlidersHorizontal className="size-5 text-nexus-cyan" />
+              <SlidersHorizontal className="size-5 text-nexus-champagne" />
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {settings.map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.label} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] p-4">
+                <div key={item.label} className="flex items-center justify-between rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
                   <div className="flex items-center gap-3">
-                    <Icon className="size-4 text-nexus-cyan" />
+                    <Icon className="size-4 text-nexus-champagne" />
                     <p className="text-sm font-medium text-foreground">{item.label}</p>
                   </div>
                   <Badge variant="secondary">{item.value}</Badge>
@@ -60,7 +60,7 @@ export function SettingsPage() {
               {["Markets-first", "Geopolitics-aware", "Priority-linked"].map((profile) => (
                 <button
                   key={profile}
-                  className="rounded-lg border border-white/10 bg-white/[0.035] p-4 text-left transition hover:border-nexus-cyan/40 hover:bg-nexus-cyan/5"
+                  className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4 text-left transition hover:border-nexus-champagne/40 hover:bg-nexus-champagne/5"
                 >
                   <p className="text-sm font-semibold text-foreground">{profile}</p>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">Active in local mock configuration.</p>

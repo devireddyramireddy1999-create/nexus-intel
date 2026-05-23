@@ -23,13 +23,13 @@ type MarketChartProps = {
 };
 
 const tooltipStyle = {
-  background: "rgba(5, 10, 18, 0.92)",
-  border: "1px solid rgba(32, 246, 255, 0.2)",
+  background: "rgba(8, 8, 8, 0.96)",
+  border: "1px solid rgba(201, 166, 70, 0.28)",
   borderRadius: 8,
-  color: "#ecfeff",
+  color: "#F4EFE3",
 };
 
-export function MarketChart({ data, color = "#20f6ff", height = 120, variant = "area", className }: MarketChartProps) {
+export function MarketChart({ data, color = "#C9A646", height = 120, variant = "area", className }: MarketChartProps) {
   return (
     <div className={cn("h-32 min-w-0 w-full", className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -38,7 +38,7 @@ export function MarketChart({ data, color = "#20f6ff", height = 120, variant = "
             <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis dataKey="time" tick={false} axisLine={false} tickLine={false} />
             <YAxis hide domain={["dataMin", "dataMax"]} />
-            <Tooltip cursor={{ fill: "rgba(32,246,255,0.08)" }} contentStyle={tooltipStyle} />
+            <Tooltip cursor={{ fill: "rgba(201,166,70,0.08)" }} contentStyle={tooltipStyle} />
             <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
           </BarChart>
         ) : variant === "line" ? (

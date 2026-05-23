@@ -19,7 +19,7 @@ export function PageHeader({ eyebrow, title, description, icon: Icon, badge }: P
       transition={{ duration: 0.35 }}
     >
       <div className="min-w-0">
-        <div className="mb-3 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.24em] text-nexus-cyan sm:tracking-[0.28em]">
+        <div className="mb-3 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.24em] text-nexus-champagne sm:tracking-[0.28em]">
           <Icon className="size-4 shrink-0" />
           {eyebrow}
         </div>

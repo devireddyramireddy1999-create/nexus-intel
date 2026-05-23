@@ -56,15 +56,15 @@ export function MarketsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Market Structure</p>
+                <p className="text-xs uppercase tracking-[0.26em] text-nexus-champagne">Market Structure</p>
                 <CardTitle className="mt-1">Index Leadership</CardTitle>
               </div>
-              <AreaChart className="size-5 text-nexus-cyan" />
+              <AreaChart className="size-5 text-nexus-champagne" />
             </div>
           </CardHeader>
           <CardContent className="grid gap-5 lg:grid-cols-2">
             {indexes.map((asset) => (
-              <div key={asset.symbol} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
+              <div key={asset.symbol} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{asset.name}</p>
@@ -83,10 +83,10 @@ export function MarketsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Heat Map</p>
+                <p className="text-xs uppercase tracking-[0.26em] text-nexus-champagne">Heat Map</p>
                 <CardTitle className="mt-1">Sector Signal</CardTitle>
               </div>
-              <BarChart3 className="size-5 text-nexus-blue" />
+              <BarChart3 className="size-5 text-nexus-gold" />
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -119,7 +119,7 @@ export function MarketsPage() {
               <p className="text-3xl font-semibold text-foreground">{asset.value}</p>
               <MarketChart
                 data={asset.series}
-                color={asset.change >= 0 ? "#20f6ff" : "#ff5f7a"}
+                color={asset.change >= 0 ? "#C9A646" : "#ff5f7a"}
                 variant="line"
                 height={120}
                 className="mt-3"
@@ -138,7 +138,7 @@ export function MarketsPage() {
           <div className="h-72">
             <MarketChart
               data={macro.map((item) => ({ time: item.name, value: item.risk + item.liquidity + item.growth }))}
-              color="#2b8cff"
+              color="#C9A646"
               variant="bar"
               height={280}
             />

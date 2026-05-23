@@ -60,8 +60,8 @@ export function CommandBar({
           <RefreshCw className={isLoading ? "animate-spin" : ""} />
           Refresh Brief
         </Button>
-        <div className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md border border-nexus-cyan/25 bg-black/30 px-3 lg:min-h-11">
-          <Command className="size-4 shrink-0 text-nexus-cyan" />
+        <div className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md border border-nexus-champagne/25 bg-black/30 px-3 lg:min-h-11">
+          <Command className="size-4 shrink-0 text-nexus-champagne" />
           <Input
             className="h-10 min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
             value={value}

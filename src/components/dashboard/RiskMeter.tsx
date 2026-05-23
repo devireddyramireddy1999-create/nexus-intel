@@ -34,7 +34,7 @@ export function RiskMeter() {
       <CardHeader>
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.22em] text-nexus-cyan sm:tracking-[0.26em]">Risk Meter</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-nexus-champagne sm:tracking-[0.26em]">Risk Meter</p>
             <CardTitle className="mt-1">Global Risk Stack</CardTitle>
           </div>
           <ShieldAlert className="size-5 shrink-0 text-nexus-ember" />

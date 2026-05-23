@@ -56,11 +56,11 @@ export function MarketSnapshot() {
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.26em] text-nexus-cyan">Market Snapshot</p>
+          <p className="text-xs uppercase tracking-[0.26em] text-nexus-champagne">Market Snapshot</p>
           <h2 className="mt-1 break-words text-xl font-semibold text-foreground">Cross-Asset Pulse</h2>
         </div>
         <Badge
-          variant={isFallbackSnapshot(marketMeta, cryptoMeta, newsMeta) ? "warning" : isLiveSnapshot(marketMeta, cryptoMeta, newsMeta) ? "success" : "secondary"}
+          variant={isFallbackSnapshot(marketMeta, cryptoMeta, newsMeta) ? "warning" : isLiveSnapshot(marketMeta, cryptoMeta, newsMeta) ? "default" : "secondary"}
         >
           {loading ? getLoadingSnapshotLabel(hasStaleSnapshot) : getSnapshotLabel(marketMeta, cryptoMeta, newsMeta)}
         </Badge>
@@ -76,7 +76,7 @@ export function MarketSnapshot() {
           {assets.map((asset, index) => {
           const hasChange = asset.changeAvailable !== false;
           const positive = asset.change >= 0;
-          const color = !hasChange ? "#20f6ff" : positive ? "#4bf4a8" : "#ff5f7a";
+          const color = !hasChange ? "#C9A646" : positive ? "#4bf4a8" : "#ff5f7a";
           return (
             <motion.div
               key={asset.symbol}

@@ -64,7 +64,7 @@ export function CryptoPage() {
               <p className="text-3xl font-semibold text-foreground">{asset.value}</p>
               <MarketChart
                 data={asset.series}
-                color={asset.changeAvailable === false ? "#20f6ff" : asset.change >= 0 ? "#4bf4a8" : "#ff5f7a"}
+                color={asset.changeAvailable === false ? "#C9A646" : asset.change >= 0 ? "#4bf4a8" : "#ff5f7a"}
                 height={140}
               />
               <p className="text-sm leading-6 text-muted-foreground">{asset.note}</p>
@@ -78,7 +78,7 @@ export function CryptoPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Conviction Scores</CardTitle>
-              <Gauge className="size-5 text-nexus-cyan" />
+              <Gauge className="size-5 text-nexus-champagne" />
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -98,12 +98,12 @@ export function CryptoPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Radar Notes</CardTitle>
-              <Activity className="size-5 text-nexus-blue" />
+              <Activity className="size-5 text-nexus-gold" />
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             {radar.map((signal) => (
-              <article key={signal.asset} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
+              <article key={signal.asset} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
                 <Badge>{signal.asset}</Badge>
                 <h2 className="mt-3 text-base font-semibold text-foreground">{signal.thesis}</h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{signal.flow}</p>
