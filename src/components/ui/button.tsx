@@ -9,12 +9,12 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "border border-[#D8C27A]/40 bg-[linear-gradient(135deg,#E2C96A,#B58B2A)] text-[#050505] shadow-[0_14px_34px_rgba(201,166,70,0.18)] hover:brightness-105",
+          "border border-[#D8C27A]/35 bg-[linear-gradient(135deg,#DCC464,#AD8326)] text-[#050505] shadow-[0_12px_28px_rgba(201,166,70,0.12)] hover:brightness-105",
         secondary:
-          "border border-primary/20 bg-[#080808] text-secondary-foreground shadow-[inset_0_1px_0_rgba(216,194,122,0.06)] hover:border-primary/35 hover:bg-[#10100f]",
-        ghost: "text-muted-foreground hover:bg-primary/[0.08] hover:text-foreground",
+          "border border-primary/[0.16] bg-[#050505]/80 text-secondary-foreground shadow-none hover:border-primary/[0.28] hover:bg-[#0a0a0a]",
+        ghost: "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
         outline:
-          "border border-primary/35 bg-[#0b0a08] text-nexus-champagne shadow-[inset_0_1px_0_rgba(216,194,122,0.05)] hover:bg-primary/[0.12] hover:text-nexus-champagne",
+          "border border-primary/[0.22] bg-transparent text-nexus-champagne shadow-none hover:border-primary/35 hover:bg-white/[0.035] hover:text-nexus-champagne",
         danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
       },
       size: {

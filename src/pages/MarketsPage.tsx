@@ -64,7 +64,7 @@ export function MarketsPage() {
           </CardHeader>
           <CardContent className="grid gap-5 lg:grid-cols-2">
             {indexes.map((asset) => (
-              <div key={asset.symbol} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
+              <div key={asset.symbol} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{asset.name}</p>

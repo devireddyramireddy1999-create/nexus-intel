@@ -57,9 +57,9 @@ export function DailyBriefHero({ briefing }: DailyBriefHeroProps) {
           <Progress value={globalRisk.value} className="mt-5 h-3" />
           <p className="mt-4 text-sm leading-6 text-muted-foreground">{globalRisk.description}</p>
           <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs text-muted-foreground">
-            <div className="rounded-md border border-primary/15 bg-primary/[0.04] p-2">Macro</div>
-            <div className="rounded-md border border-primary/15 bg-primary/[0.04] p-2">Cyber</div>
-            <div className="rounded-md border border-primary/15 bg-primary/[0.04] p-2">Transit</div>
+            <div className="rounded-md border border-primary/[0.14] bg-[#0a0a0a]/70 p-2">Macro</div>
+            <div className="rounded-md border border-primary/[0.14] bg-[#0a0a0a]/70 p-2">Cyber</div>
+            <div className="rounded-md border border-primary/[0.14] bg-[#0a0a0a]/70 p-2">Transit</div>
           </div>
         </div>
       </div>
@@ -69,7 +69,7 @@ export function DailyBriefHero({ briefing }: DailyBriefHeroProps) {
 
 function SignalMetric({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-primary/15 bg-primary/[0.04] p-3">
+    <div className="min-w-0 rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/70 p-3">
       <div className="flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground sm:tracking-[0.2em]">
         <Icon className="size-4 text-nexus-champagne" />
         <span className="min-w-0 break-words">{label}</span>

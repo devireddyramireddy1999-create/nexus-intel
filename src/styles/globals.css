@@ -53,9 +53,9 @@
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
     background:
-      radial-gradient(circle at 16% 0%, rgba(201, 166, 70, 0.035), transparent 32rem),
-      radial-gradient(circle at 86% 6%, rgba(216, 194, 122, 0.028), transparent 34rem),
-      linear-gradient(180deg, #030303 0%, #080808 48%, #030303 100%);
+      radial-gradient(circle at 18% 0%, rgba(201, 166, 70, 0.018), transparent 32rem),
+      radial-gradient(circle at 86% 6%, rgba(216, 194, 122, 0.014), transparent 34rem),
+      linear-gradient(180deg, #020202 0%, #030303 48%, #020202 100%);
   }
 
   #root {
@@ -112,10 +112,10 @@
     inset: 0;
     z-index: -2;
     background-image:
-      linear-gradient(rgba(201, 166, 70, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(201, 166, 70, 0.032) 1px, transparent 1px);
+      linear-gradient(rgba(201, 166, 70, 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201, 166, 70, 0.014) 1px, transparent 1px);
     background-size: 56px 56px;
-    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.68), transparent 82%);
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 82%);
   }
 
   .nexus-shell::after {
@@ -124,21 +124,19 @@
     position: fixed;
     inset: 0;
     z-index: -1;
-    background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px);
     background-size: 100% 4px;
-    opacity: 0.16;
+    opacity: 0.1;
   }
 
   .glass-card {
     @apply shadow-panel backdrop-blur-xl;
-    border: 1px solid rgba(201, 166, 70, 0.28);
-    background:
-      linear-gradient(180deg, rgba(20, 18, 14, 0.92), rgba(14, 14, 14, 0.92)),
-      rgba(14, 14, 14, 0.92);
+    border: 1px solid rgba(201, 166, 70, 0.16);
+    background: rgba(10, 10, 10, 0.92);
     box-shadow:
-      0 24px 80px rgba(0, 0, 0, 0.58),
-      0 0 32px rgba(201, 166, 70, 0.045),
-      inset 0 1px 0 rgba(216, 194, 122, 0.08);
+      0 24px 72px rgba(0, 0, 0, 0.5),
+      0 0 22px rgba(201, 166, 70, 0.025),
+      inset 0 1px 0 rgba(216, 194, 122, 0.05);
     overflow-wrap: break-word;
   }
 
@@ -157,7 +155,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(216, 194, 122, 0.64), transparent);
+    background: linear-gradient(90deg, transparent, rgba(216, 194, 122, 0.32), transparent);
   }
 
   .nexus-text-gradient {
@@ -169,7 +167,7 @@
 
   .thin-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(201, 166, 70, 0.42) rgba(255, 255, 255, 0.04);
+    scrollbar-color: rgba(201, 166, 70, 0.3) rgba(255, 255, 255, 0.03);
   }
 
   .thin-scrollbar::-webkit-scrollbar {
@@ -178,11 +176,11 @@
   }
 
   .thin-scrollbar::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.03);
   }
 
   .thin-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(201, 166, 70, 0.38);
+    background: rgba(201, 166, 70, 0.3);
     border-radius: 999px;
   }
 
@@ -233,8 +231,8 @@
       max(1.25rem, env(safe-area-inset-bottom))
       max(1.25rem, env(safe-area-inset-left));
     background:
-      radial-gradient(circle at 50% 0%, rgba(201, 166, 70, 0.1), transparent 28rem),
-      rgba(3, 3, 3, 0.98);
+      radial-gradient(circle at 50% 0%, rgba(201, 166, 70, 0.05), transparent 28rem),
+      rgba(2, 2, 2, 0.98);
     backdrop-filter: blur(18px);
   }
 }

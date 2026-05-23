@@ -96,7 +96,7 @@ function renderPanel(
     return (
       <div className="space-y-3">
         {data.geoItems.slice(0, 3).map((item) => (
-          <div key={item.region} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-3">
+          <div key={item.region} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="break-words text-sm font-semibold text-foreground">{item.region}</p>
               <Badge variant={item.severity === "High" ? "warning" : "secondary"}>{item.severity}</Badge>
@@ -130,7 +130,7 @@ function renderPanel(
     return (
       <div className="space-y-3">
         {data.cryptoItems.map((item) => (
-          <div key={item.asset} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-3">
+          <div key={item.asset} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="break-words text-sm font-semibold text-foreground">{item.asset}</p>
               <Badge>{item.score}</Badge>
@@ -146,7 +146,7 @@ function renderPanel(
   return (
     <div className="space-y-3">
       {priorities.map((item) => (
-        <div key={item.title} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-3">
+        <div key={item.title} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="break-words text-sm font-semibold text-foreground">{item.title}</p>
             <Badge variant="secondary">{item.due}</Badge>

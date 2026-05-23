@@ -99,7 +99,7 @@ export function BriefingOutput({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex min-h-[15rem] flex-col items-center justify-center rounded-lg border border-primary/25 bg-primary/[0.05] p-6 text-center"
+              className="flex min-h-[15rem] flex-col items-center justify-center rounded-lg border border-primary/[0.18] bg-[#0a0a0a]/80 p-6 text-center"
             >
               <Loader2 className="mb-4 size-10 animate-spin text-nexus-champagne" />
               <p className="text-lg font-semibold text-foreground">Generating daily brief</p>
@@ -116,7 +116,7 @@ export function BriefingOutput({
               transition={{ duration: 0.25 }}
               className="min-w-0 space-y-5"
             >
-              <div className="rounded-lg border border-primary/25 bg-primary/[0.08] p-4">
+              <div className="rounded-lg border border-primary/[0.18] bg-[#0e0e0e]/80 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm uppercase tracking-[0.22em] text-primary">{briefing.mode} mode</p>
                   <span className="text-xs text-muted-foreground">
@@ -135,7 +135,7 @@ export function BriefingOutput({
                     {section.items.map((item) => (
                       <li
                         key={item}
-                        className="min-w-0 break-words rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2 text-sm leading-6 text-foreground"
+                        className="min-w-0 break-words rounded-md border border-primary/[0.14] bg-[#0a0a0a]/75 px-3 py-2 text-sm leading-6 text-foreground"
                       >
                         {item}
                       </li>

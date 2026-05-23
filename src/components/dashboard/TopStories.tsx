@@ -57,7 +57,7 @@ export function TopStories() {
       <CardContent className="space-y-3">
         {loading && !hasStories ? <p className="text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
         {stories.slice(0, 8).map((story) => (
-          <article key={story.id} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
+          <article key={story.id} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge variant="default">{story.section}</Badge>
               <Badge variant={sentimentVariant[story.sentiment]}>{story.sentiment}</Badge>
@@ -68,7 +68,7 @@ export function TopStories() {
             </p>
             <h3 className="text-base font-semibold leading-6 text-foreground">{story.title}</h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{story.summary}</p>
-            <p className="mt-3 border-l border-nexus-champagne/40 pl-3 text-sm leading-6 text-foreground">{story.impact}</p>
+            <p className="mt-3 border-l border-primary/[0.24] pl-3 text-sm leading-6 text-foreground">{story.impact}</p>
           </article>
         ))}
       </CardContent>

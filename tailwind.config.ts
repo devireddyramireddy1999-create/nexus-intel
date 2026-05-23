@@ -56,9 +56,9 @@ export default {
         },
       },
       boxShadow: {
-        glow: "0 0 28px rgba(201, 166, 70, 0.18)",
-        "glow-blue": "0 0 44px rgba(201, 166, 70, 0.16)",
-        panel: "0 24px 80px rgba(0, 0, 0, 0.58)",
+        glow: "0 0 24px rgba(201, 166, 70, 0.08)",
+        "glow-blue": "0 0 36px rgba(201, 166, 70, 0.08)",
+        panel: "0 24px 72px rgba(0, 0, 0, 0.5)",
       },
       backgroundImage: {
         "scan-lines": "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)",

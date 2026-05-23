@@ -24,11 +24,11 @@ export function AppShell({ activePage, children, navItems, onNavigate, statusIco
 
   return (
     <div className="nexus-shell min-h-screen min-h-dvh">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-primary/20 bg-[#030303]/92 backdrop-blur-xl lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-primary/[0.16] bg-[#030303]/94 backdrop-blur-xl lg:block">
         <Sidebar activePage={activePage} navItems={navItems} onNavigate={navigate} statusIcon={StatusIcon} />
       </aside>
 
-      <header className="mobile-safe-top sticky top-0 z-30 border-b border-primary/20 bg-[#030303]/88 backdrop-blur-xl lg:hidden">
+      <header className="mobile-safe-top sticky top-0 z-30 border-b border-primary/[0.16] bg-[#030303]/90 backdrop-blur-xl lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Brand statusIcon={StatusIcon} compact />
           <Button variant="secondary" size="icon" aria-label="Open navigation" onClick={() => setOpen(true)}>

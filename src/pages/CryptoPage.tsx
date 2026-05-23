@@ -103,7 +103,7 @@ export function CryptoPage() {
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             {radar.map((signal) => (
-              <article key={signal.asset} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
+              <article key={signal.asset} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-4">
                 <Badge>{signal.asset}</Badge>
                 <h2 className="mt-3 text-base font-semibold text-foreground">{signal.thesis}</h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{signal.flow}</p>

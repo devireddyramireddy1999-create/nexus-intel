@@ -60,7 +60,7 @@ export function GeopoliticsPage() {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {watch.map((item) => (
-              <article key={item.region} className="rounded-lg border border-primary/15 bg-primary/[0.035] p-4">
+              <article key={item.region} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h2 className="text-lg font-semibold text-foreground">{item.region}</h2>
                   <Badge variant={item.severity === "High" ? "warning" : "secondary"}>{item.severity}</Badge>
@@ -110,7 +110,7 @@ export function GeopoliticsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-6 text-muted-foreground">{story.summary}</p>
-                <p className="mt-3 rounded-md border border-nexus-champagne/20 bg-nexus-champagne/5 p-3 text-sm leading-6 text-foreground">
+                <p className="mt-3 rounded-md border border-primary/[0.16] bg-[#0a0a0a]/70 p-3 text-sm leading-6 text-foreground">
                   {story.impact}
                 </p>
               </CardContent>
