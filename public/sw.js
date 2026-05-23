@@ -1,8 +1,9 @@
-const CACHE_NAME = "nexus-intel-v4";
+const CACHE_NAME = "nexus-intel-v5";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
   "/icons/nexus-icon.png",
+  "/icons/favicon.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
