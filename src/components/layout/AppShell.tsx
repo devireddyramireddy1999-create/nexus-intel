@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, Power, RotateCcw, Signal, X } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn, formatTime } from "@/lib/utils";
@@ -16,6 +16,21 @@ type AppShellProps = {
 
 export function AppShell({ activePage, children, navItems, onNavigate, statusIcon: StatusIcon }: AppShellProps) {
   const [open, setOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const scrollToTop = () => {
+      mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    scrollToTop();
+    const frame = window.requestAnimationFrame(scrollToTop);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activePage]);
 
   const navigate = (page: PageKey) => {
     onNavigate(page);
@@ -64,7 +79,7 @@ export function AppShell({ activePage, children, navItems, onNavigate, statusIco
         ) : null}
       </AnimatePresence>
 
-      <main className="nexus-app-main min-w-0 overflow-x-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-72">
+      <main ref={mainRef} className="nexus-app-main min-w-0 overflow-x-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-72">
         <div className="mx-auto flex min-h-screen min-h-dvh w-full min-w-0 max-w-[1560px] flex-col px-3 py-4 sm:px-6 lg:px-8 lg:py-7">
           <TopStatus />
           {children}
