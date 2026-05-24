@@ -42,6 +42,8 @@ export type IntelligenceStory = {
   source?: string;
   sourceType?: "rss" | "fallback";
   url?: string;
+  coveredBy?: string[];
+  sourceCount?: number;
 };
 
 export type RiskSignal = {

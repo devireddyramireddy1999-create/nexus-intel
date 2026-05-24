@@ -119,6 +119,108 @@ const riskKeywords = {
   medium: ["election", "trade", "tariff", "central bank", "dollar", "security", "semiconductor", "chip"],
 };
 
+const sourceNameWords = [
+  "al",
+  "aljazeera",
+  "bbc",
+  "cnbc",
+  "finance",
+  "jazeera",
+  "markets",
+  "npr",
+  "techcrunch",
+  "the",
+  "verge",
+  "world",
+  "yahoo",
+];
+
+const dedupeStopWords = new Set([
+  ...sourceNameWords,
+  "a",
+  "about",
+  "after",
+  "again",
+  "against",
+  "all",
+  "amid",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "been",
+  "before",
+  "being",
+  "breaking",
+  "brief",
+  "but",
+  "by",
+  "day",
+  "for",
+  "from",
+  "has",
+  "have",
+  "how",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "latest",
+  "live",
+  "more",
+  "new",
+  "news",
+  "of",
+  "on",
+  "over",
+  "report",
+  "reports",
+  "says",
+  "the",
+  "this",
+  "to",
+  "today",
+  "update",
+  "updates",
+  "us",
+  "was",
+  "will",
+  "with",
+]);
+
+const entityPatterns = [
+  ["trump", /\b(donald trump|trump|president trump)\b/i],
+  ["iran", /\b(iran|iranian|tehran)\b/i],
+  ["strait-hormuz", /\b(strait of hormuz|hormuz)\b/i],
+  ["israel", /\b(israel|israeli|jerusalem)\b/i],
+  ["gaza", /\b(gaza|hamas|palestinian)\b/i],
+  ["ukraine", /\b(ukraine|ukrainian|kyiv)\b/i],
+  ["russia", /\b(russia|russian|moscow|putin)\b/i],
+  ["china", /\b(china|chinese|beijing)\b/i],
+  ["taiwan", /\b(taiwan|taiwanese)\b/i],
+  ["india", /\b(india|indian|new delhi)\b/i],
+  ["pakistan", /\b(pakistan|pakistani|islamabad)\b/i],
+  ["walmart", /\b(walmart|wmt)\b/i],
+  ["nvidia", /\b(nvidia|nvda)\b/i],
+  ["openai", /\b(openai|chatgpt)\b/i],
+  ["fed", /\b(federal reserve|fed|powell)\b/i],
+  ["oil", /\b(oil|crude|brent|wti)\b/i],
+  ["dollar", /\b(dollar|usd|greenback)\b/i],
+];
+
+const anglePatterns = [
+  ["ai-tech", /\b(ai|artificial intelligence|chip|chips|semiconductor|nvidia|openai|cybersecurity|gpu)\b/i],
+  ["diplomacy", /\b(talk|talks|deal|diplomacy|diplomatic|negotiation|ceasefire|agreement)\b/i],
+  ["energy-shipping", /\b(oil|crude|shipping|ship|strait|hormuz|red sea|suez|tanker|energy)\b/i],
+  ["military", /\b(war|attack|strike|missile|military|troops|invasion|defense|weapon)\b/i],
+  ["sanctions", /\b(sanction|sanctions|tariff|embargo|restriction)\b/i],
+  ["election-policy", /\b(election|vote|policy|law|court|minister|president|congress|parliament)\b/i],
+  ["markets", /\b(stock|stocks|shares|earnings|revenue|profit|inflation|central bank|treasury|yield|market|economy)\b/i],
+];
+
 export async function getNews() {
   try {
     const newsItems = await fetchRssNews();
@@ -213,6 +315,8 @@ function getFallbackNewsData() {
       source: "NEXUS Mock Wire",
       sourceType: "fallback",
       url: `https://mock.nexus.local/news/${story.id}`,
+      coveredBy: ["NEXUS Mock Wire"],
+      sourceCount: 1,
     })),
     newsItems,
     geopoliticalWatch,
@@ -223,11 +327,12 @@ function getFallbackNewsData() {
 
 function toFallbackNewsItem(story, index) {
   const category = categoryMap[story.section];
+  const source = "NEXUS Mock Wire";
 
   return {
     id: story.id,
     title: story.title,
-    source: "NEXUS Mock Wire",
+    source,
     url: `https://mock.nexus.local/news/${story.id}`,
     category,
     publishedAt: publishedAt[index] ?? publishedAt[0],
@@ -237,6 +342,8 @@ function toFallbackNewsItem(story, index) {
     whyItMatters: story.impact,
     marketImpact: marketImpactByCategory[category],
     sourceType: "fallback",
+    coveredBy: [source],
+    sourceCount: 1,
   };
 }
 
@@ -255,6 +362,8 @@ function buildStories(newsItems) {
       source: item.source,
       sourceType: item.sourceType,
       url: item.url,
+      coveredBy: item.coveredBy,
+      sourceCount: item.sourceCount,
     }));
 }
 
@@ -355,14 +464,241 @@ function limitArticlesByCategory(newsItems) {
 }
 
 function dedupeArticles(articles) {
-  const seen = new Set();
+  const clusters = [];
+  const clustersByUrl = new Map();
 
-  return articles.filter((article) => {
-    const key = article.url || article.title.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  for (const article of articles) {
+    const prepared = prepareArticleForDedupe(article);
+    const urlKey = normalizeUrl(article.url);
+    const urlCluster = urlKey ? clustersByUrl.get(urlKey) : null;
+    const cluster = urlCluster ?? clusters.find((candidate) => isSameStoryCluster(candidate, prepared));
+
+    if (cluster) {
+      addArticleToCluster(cluster, article, prepared);
+    } else {
+      clusters.push(createStoryCluster(article, prepared));
+    }
+
+    const targetCluster = cluster ?? clusters.at(-1);
+    if (urlKey && targetCluster) {
+      clustersByUrl.set(urlKey, targetCluster);
+    }
+  }
+
+  return clusters.map(finalizeStoryCluster).sort((a, b) => b.importanceScore - a.importanceScore || Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+}
+
+function createStoryCluster(article, prepared) {
+  const cluster = {
+    angles: new Set(),
+    articles: [],
+    entities: new Set(),
+    normalizedTitles: new Set(),
+    sources: new Set(),
+    tokenSets: [],
+    topics: new Set(),
+    winner: article,
+  };
+
+  addArticleToCluster(cluster, article, prepared);
+  return cluster;
+}
+
+function addArticleToCluster(cluster, article, prepared) {
+  cluster.articles.push(article);
+  cluster.normalizedTitles.add(prepared.normalizedTitle);
+  cluster.tokenSets.push(prepared.tokens);
+  prepared.entities.forEach((entity) => cluster.entities.add(entity));
+  prepared.topics.forEach((topic) => cluster.topics.add(topic));
+  prepared.angles.forEach((angle) => cluster.angles.add(angle));
+  if (article.source) cluster.sources.add(article.source);
+
+  if (isBetterClusterArticle(article, cluster.winner)) {
+    cluster.winner = article;
+  }
+}
+
+function finalizeStoryCluster(cluster) {
+  const winner = cluster.winner;
+  const coveredBy = [
+    winner.source,
+    ...cluster.articles
+      .sort((a, b) => getClusterArticleScore(b) - getClusterArticleScore(a))
+      .map((article) => article.source),
+  ].filter(Boolean);
+  const uniqueSources = uniqueValues(coveredBy);
+  const clusterKey = buildClusterKey(cluster);
+
+  return {
+    ...winner,
+    id: `${winner.category}-${hashId(clusterKey || winner.id)}`,
+    clusterKey,
+    coveredBy: uniqueSources,
+    sourceCount: uniqueSources.length,
+  };
+}
+
+function prepareArticleForDedupe(article) {
+  const text = `${article.title ?? ""} ${article.summary ?? ""}`;
+  const normalizedTitle = normalizeTitleForDedupe(article.title);
+  const tokens = tokenizeForDedupe(`${article.title ?? ""} ${article.summary ?? ""}`);
+  const entities = extractPatternMatches(text, entityPatterns);
+  const angles = extractPatternMatches(text, anglePatterns);
+  const topics = new Set([...tokens].filter((token) => token.length >= 5).slice(0, 16));
+
+  entities.forEach((entity) => topics.add(entity));
+  angles.forEach((angle) => topics.add(angle));
+
+  if (!angles.size) {
+    angles.add(article.category ?? "world");
+  }
+
+  return {
+    angles,
+    entities,
+    normalizedTitle,
+    tokens,
+    topics,
+  };
+}
+
+function isSameStoryCluster(cluster, prepared) {
+  if (cluster.normalizedTitles.has(prepared.normalizedTitle)) return true;
+
+  const titleSimilarity = Math.max(...cluster.tokenSets.map((tokens) => jaccardSimilarity(tokens, prepared.tokens)), 0);
+  const entityOverlap = intersectionSize(cluster.entities, prepared.entities);
+  const topicOverlap = intersectionSize(cluster.topics, prepared.topics);
+  const angleOverlap = intersectionSize(cluster.angles, prepared.angles);
+
+  if (titleSimilarity >= 0.68) return true;
+  if (angleOverlap >= 1 && entityOverlap >= 2 && titleSimilarity >= 0.34) return true;
+  if (angleOverlap >= 1 && entityOverlap >= 1 && topicOverlap >= 4 && titleSimilarity >= 0.42) return true;
+  if (angleOverlap >= 1 && topicOverlap >= 6 && titleSimilarity >= 0.5) return true;
+
+  return false;
+}
+
+function normalizeUrl(value) {
+  if (!value) return "";
+
+  try {
+    const url = new URL(value);
+    [
+      "cmpid",
+      "feedName",
+      "feedType",
+      "guccounter",
+      "utm_campaign",
+      "utm_content",
+      "utm_medium",
+      "utm_source",
+      "utm_term",
+    ].forEach((key) => url.searchParams.delete(key));
+    url.hash = "";
+    return url.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return String(value).replace(/[?#].*$/, "").replace(/\/$/, "").toLowerCase();
+  }
+}
+
+function normalizeTitleForDedupe(value) {
+  return [...tokenizeForDedupe(value)].join(" ");
+}
+
+function tokenizeForDedupe(value) {
+  const text = cleanText(value)
+    .toLowerCase()
+    .replace(/&amp;/g, " and ")
+    .replace(/['’]s\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ");
+  const tokens = text
+    .split(" ")
+    .map((token) => normalizeToken(token))
+    .filter((token) => token.length > 2 && !dedupeStopWords.has(token));
+
+  return new Set(tokens);
+}
+
+function normalizeToken(token) {
+  const aliases = {
+    ai: "artificial-intelligence",
+    chipmaker: "chip",
+    chipmakers: "chip",
+    equities: "stock",
+    hormuz: "strait-hormuz",
+    iranian: "iran",
+    israeli: "israel",
+    markets: "market",
+    palestinians: "palestinian",
+    sanctions: "sanction",
+    shares: "stock",
+    stocks: "stock",
+    ukrainian: "ukraine",
+  };
+  const normalized = token.replace(/ies$/, "y").replace(/s$/, "");
+
+  return aliases[token] ?? aliases[normalized] ?? normalized;
+}
+
+function extractPatternMatches(text, patterns) {
+  const matches = new Set();
+
+  patterns.forEach(([label, pattern]) => {
+    if (pattern.test(text)) matches.add(label);
   });
+
+  return matches;
+}
+
+function isBetterClusterArticle(candidate, current) {
+  return getClusterArticleScore(candidate) > getClusterArticleScore(current);
+}
+
+function getClusterArticleScore(article) {
+  const sourceWeight = {
+    "BBC World": 6,
+    "NPR World": 6,
+    "CNBC Markets": 5,
+    "Al Jazeera": 5,
+    "Yahoo Finance": 4,
+    "TechCrunch AI": 4,
+    "The Verge": 4,
+  }[article.source] ?? 2;
+  const timestamp = Date.parse(article.publishedAt);
+  const recencyWeight = Number.isNaN(timestamp) ? 0 : Math.max(0, 12 - Math.floor((Date.now() - timestamp) / 3_600_000));
+  const summaryWeight = Math.min(Math.floor((article.summary?.length ?? 0) / 80), 4);
+
+  return (article.importanceScore ?? 60) * 10 + sourceWeight + recencyWeight + summaryWeight;
+}
+
+function buildClusterKey(cluster) {
+  const entities = [...cluster.entities].sort().join("-");
+  const angles = [...cluster.angles].sort().join("-");
+  const topics = [...cluster.topics].sort().slice(0, 8).join("-");
+
+  return [entities, angles, topics].filter(Boolean).join("|");
+}
+
+function jaccardSimilarity(left, right) {
+  const union = new Set([...left, ...right]);
+
+  if (!union.size) return 0;
+
+  return intersectionSize(left, right) / union.size;
+}
+
+function intersectionSize(left, right) {
+  let count = 0;
+
+  for (const value of left) {
+    if (right.has(value)) count += 1;
+  }
+
+  return count;
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function cleanText(value) {

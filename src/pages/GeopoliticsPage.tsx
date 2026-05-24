@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { formatPublishedTime } from "@/lib/utils";
+import { formatCoveredBy, formatPublishedTime } from "@/lib/utils";
 import { getCachedNewsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { IntelligenceStory, RiskSignal, WatchItem } from "@/types/intel";
 
@@ -97,25 +97,30 @@ export function GeopoliticsPage() {
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         {stories
           .filter((story) => story.section === "World" || story.section === "Geopolitics")
-          .map((story) => (
-            <Card key={story.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle>{story.title}</CardTitle>
-                  <Badge>{story.confidence}%</Badge>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {story.source ?? "NEXUS"} / {formatPublishedTime(story.publishedAt)}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm leading-6 text-muted-foreground">{story.summary}</p>
-                <p className="mt-3 rounded-md border border-primary/[0.16] bg-[#0a0a0a]/70 p-3 text-sm leading-6 text-foreground">
-                  {story.impact}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+          .map((story) => {
+            const coveredBy = formatCoveredBy(story.source, story.coveredBy);
+
+            return (
+              <Card key={story.id}>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle>{story.title}</CardTitle>
+                    <Badge>{story.confidence}%</Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {story.source ?? "NEXUS"} / {formatPublishedTime(story.publishedAt)}
+                  </p>
+                  {coveredBy ? <p className="mt-1 text-xs text-muted-foreground/80">{coveredBy}</p> : null}
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-6 text-muted-foreground">{story.summary}</p>
+                  <p className="mt-3 rounded-md border border-primary/[0.16] bg-[#0a0a0a]/70 p-3 text-sm leading-6 text-foreground">
+                    {story.impact}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
       </div>
     </>
   );

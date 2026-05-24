@@ -306,5 +306,7 @@ function toNewsItem(story: IntelligenceStory, index: number): NewsItem {
     whyItMatters: story.impact,
     marketImpact: marketImpactByCategory[category],
     sourceType: "fallback",
+    coveredBy: ["NEXUS Local Fallback"],
+    sourceCount: 1,
   };
 }

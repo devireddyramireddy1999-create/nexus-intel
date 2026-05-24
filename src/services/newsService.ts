@@ -18,6 +18,8 @@ export type NewsItem = {
   whyItMatters: string;
   marketImpact: string;
   sourceType?: "rss" | "fallback";
+  coveredBy?: string[];
+  sourceCount?: number;
 };
 
 export type NewsQuery = {

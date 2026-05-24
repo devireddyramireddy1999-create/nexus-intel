@@ -50,3 +50,15 @@ export function formatPublishedTime(value?: string) {
     minute: "2-digit",
   }).format(date);
 }
+
+export function formatCoveredBy(source?: string, coveredBy?: string[], maxSources = 3) {
+  const alternateSources = [...new Set((coveredBy ?? []).filter((item) => item && item !== source))];
+
+  if (!alternateSources.length) return "";
+
+  const visibleSources = alternateSources.slice(0, maxSources);
+  const hiddenCount = alternateSources.length - visibleSources.length;
+  const suffix = hiddenCount > 0 ? ` +${hiddenCount} more` : "";
+
+  return `Also covered by ${visibleSources.join(", ")}${suffix}`;
+}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Newspaper } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatPublishedTime } from "@/lib/utils";
+import { formatCoveredBy, formatPublishedTime } from "@/lib/utils";
 import { getCachedNewsData, getNewsData, type ApiMeta } from "@/services/backendApi";
 import type { IntelligenceStory } from "@/types/intel";
 
@@ -56,21 +56,26 @@ export function TopStories() {
       {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">News feed unavailable after retries. Showing fallback mode.</p> : null}
       <CardContent className="space-y-3">
         {loading && !hasStories ? <p className="text-sm text-muted-foreground">Warming live intelligence feeds...</p> : null}
-        {stories.slice(0, 8).map((story) => (
-          <article key={story.id} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge variant="default">{story.section}</Badge>
-              <Badge variant={sentimentVariant[story.sentiment]}>{story.sentiment}</Badge>
-              <span className="text-xs text-muted-foreground">{story.confidence}% confidence</span>
-            </div>
-            <p className="mb-2 text-xs text-muted-foreground">
-              {story.source ?? "NEXUS"} / {formatPublishedTime(story.publishedAt)}
-            </p>
-            <h3 className="text-base font-semibold leading-6 text-foreground">{story.title}</h3>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{story.summary}</p>
-            <p className="mt-3 border-l border-primary/[0.24] pl-3 text-sm leading-6 text-foreground">{story.impact}</p>
-          </article>
-        ))}
+        {stories.slice(0, 8).map((story) => {
+          const coveredBy = formatCoveredBy(story.source, story.coveredBy);
+
+          return (
+            <article key={story.id} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-4">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge variant="default">{story.section}</Badge>
+                <Badge variant={sentimentVariant[story.sentiment]}>{story.sentiment}</Badge>
+                <span className="text-xs text-muted-foreground">{story.confidence}% confidence</span>
+              </div>
+              <p className="mb-2 text-xs text-muted-foreground">
+                {story.source ?? "NEXUS"} / {formatPublishedTime(story.publishedAt)}
+              </p>
+              {coveredBy ? <p className="mb-2 text-xs text-muted-foreground/80">{coveredBy}</p> : null}
+              <h3 className="text-base font-semibold leading-6 text-foreground">{story.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{story.summary}</p>
+              <p className="mt-3 border-l border-primary/[0.24] pl-3 text-sm leading-6 text-foreground">{story.impact}</p>
+            </article>
+          );
+        })}
       </CardContent>
     </Card>
   );
