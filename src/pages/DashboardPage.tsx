@@ -100,17 +100,30 @@ export function DashboardPage() {
         <DailyBriefHero briefing={briefing} />
         <MarketSnapshot />
 
-        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <RiskMeter />
-          <TopStories />
+        <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-6">
+            <div className="order-1 min-w-0 xl:order-none">
+              <RiskMeter />
+            </div>
+            <div className="order-3 min-w-0 xl:order-none">
+              <SignalPanel title="Geopolitical Watch" eyebrow="Global Grid" icon={Globe2} variant="geo" />
+            </div>
+            <div className="order-4 min-w-0 xl:order-none">
+              <SignalPanel title="Crypto Radar" eyebrow="On-Chain" icon={Coins} variant="crypto" />
+            </div>
+            <div className="order-5 min-w-0 xl:order-none">
+              <SignalPanel title="AI & Tech Signals" eyebrow="Machine Layer" icon={BrainCircuit} variant="tech" />
+            </div>
+          </div>
+
+          <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-6">
+            <div className="order-2 min-w-0 xl:order-none">
+              <TopStories />
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-2">
-          <SignalPanel title="Geopolitical Watch" eyebrow="Global Grid" icon={Globe2} variant="geo" />
-          <SignalPanel title="AI & Tech Signals" eyebrow="Machine Layer" icon={BrainCircuit} variant="tech" />
-          <SignalPanel title="Crypto Radar" eyebrow="On-Chain" icon={Coins} variant="crypto" />
-          <SignalPanel title="Personal Priority Panel" eyebrow="Execution" icon={Target} variant="priority" />
-        </div>
+        <SignalPanel title="Personal Priority Panel" eyebrow="Execution" icon={Target} variant="priority" />
 
         <BriefingOutput
           briefing={briefing}

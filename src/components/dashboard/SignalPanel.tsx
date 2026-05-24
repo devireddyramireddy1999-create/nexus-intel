@@ -62,7 +62,7 @@ export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanel
   }, [variant]);
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
