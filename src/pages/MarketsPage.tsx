@@ -72,7 +72,7 @@ export function MarketsPage() {
                   </div>
                   <Badge variant={asset.change >= 0 ? "success" : "danger"}>{formatSigned(asset.change)}</Badge>
                 </div>
-                <MarketChart data={asset.series} color={asset.change >= 0 ? "#4bf4a8" : "#ff5f7a"} height={190} />
+                <MarketChart data={asset.series} />
                 <p className="text-sm leading-6 text-muted-foreground">{asset.note}</p>
               </div>
             ))}
@@ -117,13 +117,7 @@ export function MarketsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-semibold text-foreground">{asset.value}</p>
-              <MarketChart
-                data={asset.series}
-                color={asset.change >= 0 ? "#C9A646" : "#ff5f7a"}
-                variant="line"
-                height={120}
-                className="mt-3"
-              />
+              <MarketChart data={asset.series} className="mt-3" />
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{asset.note}</p>
             </CardContent>
           </Card>
@@ -139,6 +133,7 @@ export function MarketsPage() {
             <MarketChart
               data={macro.map((item) => ({ time: item.name, value: item.risk + item.liquidity + item.growth }))}
               color="#C9A646"
+              normalize={false}
               variant="bar"
               height={280}
             />

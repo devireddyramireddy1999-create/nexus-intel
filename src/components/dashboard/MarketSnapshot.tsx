@@ -76,7 +76,6 @@ export function MarketSnapshot() {
           {assets.map((asset, index) => {
           const hasChange = asset.changeAvailable !== false;
           const positive = asset.change >= 0;
-          const color = !hasChange ? "#C9A646" : positive ? "#4bf4a8" : "#ff5f7a";
           return (
             <motion.div
               key={asset.symbol}
@@ -111,7 +110,7 @@ export function MarketSnapshot() {
                       {hasChange ? formatSigned(asset.change) : "24h n/a"}
                     </div>
                   </div>
-                  <MarketChart data={asset.series} color={color} height={88} className="mt-4" />
+                  <MarketChart data={asset.series} className="mt-4" />
                   <p className="mt-3 min-h-10 text-xs leading-5 text-muted-foreground">{asset.note}</p>
                 </CardContent>
               </Card>

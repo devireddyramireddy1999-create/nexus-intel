@@ -14,6 +14,7 @@ import type {
   MarketAsset as DashboardMarketAsset,
   RiskSignal,
   TechSignal,
+  TrendPoint,
   WatchItem,
 } from "@/types/intel";
 import { buildAccessHeaders, clearAccessToken } from "@/services/accessService";
@@ -23,6 +24,7 @@ import type { NewsItem } from "@/services/newsService";
 export type ApiMeta = {
   cached: boolean;
   cachedAt: string;
+  cacheable?: boolean;
   expiresAt?: string;
   fallback: boolean;
   source: "api" | "coinbase" | "coingecko" | "finnhub" | "local" | "openai" | "rss" | "mock";
@@ -69,15 +71,17 @@ const fallbackMeta: ApiMeta = {
   source: "mock",
 };
 
-const liveCachePrefix = "nexus-live-cache:";
+const liveCachePrefix = "nexus-live-cache:v3:";
 const retryDelays = [800, 1500, 2500];
 
 export async function getMarketsData(): Promise<ApiResult<MarketsApiData>> {
-  return fetchWithFallback("/api/markets", buildMarketsFallback);
+  const response = await fetchWithFallback("/api/markets", buildMarketsFallback);
+  return normalizeMarketsResult(response);
 }
 
 export async function getCryptoData(): Promise<ApiResult<CryptoApiData>> {
-  return fetchWithFallback("/api/crypto", buildCryptoFallback);
+  const response = await fetchWithFallback("/api/crypto", buildCryptoFallback);
+  return normalizeCryptoResult(response);
 }
 
 export async function getNewsData(): Promise<ApiResult<NewsApiData>> {
@@ -93,11 +97,13 @@ export async function postBriefing<T>(payload: unknown): Promise<ApiResult<T>> {
 }
 
 export function getCachedMarketsData(): ApiResult<MarketsApiData> | null {
-  return readLiveCache<MarketsApiData>("/api/markets");
+  const cached = readLiveCache<MarketsApiData>("/api/markets");
+  return cached ? normalizeMarketsResult(cached) : null;
 }
 
 export function getCachedCryptoData(): ApiResult<CryptoApiData> | null {
-  return readLiveCache<CryptoApiData>("/api/crypto");
+  const cached = readLiveCache<CryptoApiData>("/api/crypto");
+  return cached ? normalizeCryptoResult(cached) : null;
 }
 
 export function getCachedNewsData(): ApiResult<NewsApiData> | null {
@@ -211,7 +217,13 @@ function readLiveCache<T>(path: string): ApiResult<T> | null {
 }
 
 function writeLiveCache<T>(path: string, result: ApiResult<T>) {
-  if (typeof window === "undefined" || result.meta.fallback || result.meta.source === "mock") return;
+  if (
+    typeof window === "undefined" ||
+    result.meta.cacheable === false ||
+    result.meta.fallback ||
+    result.meta.source === "coinbase" ||
+    result.meta.source === "mock"
+  ) return;
 
   try {
     window.localStorage.setItem(
@@ -228,6 +240,77 @@ function writeLiveCache<T>(path: string, result: ApiResult<T>) {
   } catch {
     // localStorage can be unavailable in private or restricted browser modes.
   }
+}
+
+function normalizeMarketsResult(result: ApiResult<MarketsApiData>): ApiResult<MarketsApiData> {
+  const assets = result.data.assets.map(normalizeMarketAsset);
+
+  return {
+    ...result,
+    data: {
+      ...result.data,
+      assets,
+      quotes: result.data.quotes?.length ? result.data.quotes : assets.map(toQuote),
+    },
+  };
+}
+
+function normalizeCryptoResult(result: ApiResult<CryptoApiData>): ApiResult<CryptoApiData> {
+  return {
+    ...result,
+    data: {
+      ...result.data,
+      assets: result.data.assets.map(normalizeMarketAsset),
+    },
+  };
+}
+
+type ApiMarketAsset = DashboardMarketAsset & {
+  chart?: TrendPoint[] | { series?: TrendPoint[] };
+  chartData?: TrendPoint[];
+  history?: TrendPoint[];
+  points?: TrendPoint[];
+  sparkline?: TrendPoint[];
+};
+
+function normalizeMarketAsset(asset: DashboardMarketAsset): DashboardMarketAsset {
+  const apiAsset = asset as ApiMarketAsset;
+  const chartSeries = Array.isArray(apiAsset.chart) ? apiAsset.chart : apiAsset.chart?.series;
+  const series = firstValidSeries([
+    apiAsset.series,
+    apiAsset.history,
+    apiAsset.chartData,
+    chartSeries,
+    apiAsset.sparkline,
+    apiAsset.points,
+  ]);
+
+  return {
+    ...asset,
+    series,
+    seriesSource: series.length >= 2 ? asset.seriesSource : "latest-quote-only",
+  };
+}
+
+function firstValidSeries(seriesCandidates: Array<TrendPoint[] | undefined>) {
+  for (const candidate of seriesCandidates) {
+    const series = normalizeSeries(candidate);
+
+    if (series.length >= 2) return series;
+  }
+
+  return [];
+}
+
+function normalizeSeries(series: TrendPoint[] | undefined) {
+  if (!Array.isArray(series)) return [];
+
+  return series
+    .map((point) => ({
+      time: String(point?.time ?? ""),
+      value: Number(point?.value),
+    }))
+    .filter((point) => point.time && Number.isFinite(point.value));
 }
 
 function buildMarketsFallback(): MarketsApiData {

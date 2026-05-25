@@ -62,11 +62,7 @@ export function CryptoPage() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-semibold text-foreground">{asset.value}</p>
-              <MarketChart
-                data={asset.series}
-                color={asset.changeAvailable === false ? "#C9A646" : asset.change >= 0 ? "#4bf4a8" : "#ff5f7a"}
-                height={140}
-              />
+              <MarketChart data={asset.series} />
               <p className="text-sm leading-6 text-muted-foreground">{asset.note}</p>
             </CardContent>
           </Card>

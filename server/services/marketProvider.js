@@ -5,27 +5,32 @@ const FINNHUB_CANDLE_URL = "https://finnhub.io/api/v1/stock/candle";
 const FRANKFURTER_LATEST_URL = "https://api.frankfurter.dev/v1/latest";
 const FRANKFURTER_HISTORICAL_URL = "https://api.frankfurter.dev/v1";
 const OPEN_EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD";
+const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 
 const liveMarketProxies = [
   {
     symbol: "SPX",
     proxySymbol: "SPY",
-    note: "Live Finnhub quote using SPY ETF as the S&P 500 proxy.",
+    historySymbol: "SPY",
+    note: "SPX Proxy uses SPY ETF.",
   },
   {
     symbol: "NDX",
     proxySymbol: "QQQ",
-    note: "Live Finnhub quote using QQQ ETF as the Nasdaq proxy.",
+    historySymbol: "QQQ",
+    note: "NDX Proxy uses QQQ ETF.",
   },
   {
     symbol: "XAU",
     proxySymbol: "GLD",
-    note: "Live Finnhub quote using GLD ETF as the gold proxy.",
+    historySymbol: "GLD",
+    note: "Gold Proxy uses GLD ETF.",
   },
   {
     symbol: "WTI",
     proxySymbol: "USO",
-    note: "Live Finnhub quote using USO ETF as the oil proxy.",
+    historySymbol: "USO",
+    note: "Oil Proxy uses USO ETF.",
   },
 ];
 
@@ -45,6 +50,8 @@ export async function getMarkets() {
     ...(apiKey && missingRequiredSymbols.length ? [`Finnhub missing proxy data for ${missingRequiredSymbols.join(", ")}.`] : []),
     ...(usdInrAsset?.fallback ? ["USD/INR live FX sources unavailable."] : []),
   ];
+
+  logFinalMarketResponse(assets);
 
   return {
     data: {
@@ -99,7 +106,7 @@ async function buildLiveMarketAssets(fallbackAssets, apiKey) {
           liveMarketProxies.map(async (proxy) => ({
             proxy,
             quote: await fetchFinnhubQuote(proxy.proxySymbol, apiKey),
-            series: await fetchFinnhubCandles(proxy.proxySymbol, apiKey).catch(() => []),
+            chart: await fetchMarketProxyChart(proxy, apiKey),
           })),
         )
       : Promise.resolve([]),
@@ -110,11 +117,11 @@ async function buildLiveMarketAssets(fallbackAssets, apiKey) {
   for (const result of proxyResults) {
     if (result.status !== "fulfilled") continue;
 
-    const { proxy, quote, series } = result.value;
+    const { proxy, quote, chart } = result.value;
     const fallbackAsset = fallbackAssets.find((asset) => asset.symbol === proxy.symbol);
     if (!fallbackAsset) continue;
 
-    liveBySymbol.set(proxy.symbol, toLiveAsset(fallbackAsset, proxy, quote, series));
+    liveBySymbol.set(proxy.symbol, toLiveAsset(fallbackAsset, proxy, quote, chart));
   }
 
   if (usdInrAsset) {
@@ -133,7 +140,7 @@ async function buildLiveUsdInrAsset(fallbackAsset) {
     change,
     fallback: false,
     lastUpdatedAt: quote.updatedAt,
-    note: quote.series?.length ? "Live FX quote and historical USD/INR series." : "Live FX quote for USD/INR. Latest quote only.",
+    note: quote.series?.length ? "Live FX quote. Chart uses FX historical series." : "Live FX quote for USD/INR. Chart unavailable — latest quote only.",
     series: quote.series ?? [],
     seriesSource: quote.series?.length ? quote.seriesSource : "latest-quote-only",
     source: quote.source,
@@ -288,9 +295,16 @@ async function fetchFinnhubCandles(symbol, apiKey) {
   url.searchParams.set("to", String(to));
   url.searchParams.set("token", apiKey);
 
-  const payload = await fetchJson(url, `Finnhub candles ${symbol}`);
+  const diagnostics = {
+    provider: "Finnhub stock/candle",
+    requestUrl: sanitizeHistoryUrl(url),
+    symbol,
+  };
+  const payload = await fetchHistoryJson(url, `Finnhub candles ${symbol}`, diagnostics);
   if (payload?.s !== "ok" || !Array.isArray(payload.c) || !Array.isArray(payload.t)) {
-    throw new Error(`Finnhub response missing candle data for ${symbol}.`);
+    const error = `Finnhub response missing candle data for ${symbol}. status=${payload?.s ?? "missing"}`;
+    logHistoryDiagnostics({ ...diagnostics, error, points: 0 });
+    throw new Error(error);
   }
 
   const series = payload.c
@@ -300,23 +314,130 @@ async function fetchFinnhubCandles(symbol, apiKey) {
     }))
     .filter((point) => point.time && Number.isFinite(point.value) && point.value > 0);
 
-  return series.length >= 2 ? series.map((point) => ({ ...point, value: Number(point.value.toFixed(2)) })) : [];
+  const normalized = series.length >= 2 ? series.map((point) => ({ ...point, value: Number(point.value.toFixed(2)) })) : [];
+  logHistoryDiagnostics({ ...diagnostics, points: normalized.length });
+
+  return normalized;
 }
 
-function toLiveAsset(fallbackAsset, proxy, quote, series = []) {
+async function fetchMarketProxyChart(proxy, apiKey) {
+  try {
+    const series = await fetchFinnhubCandles(proxy.proxySymbol, apiKey);
+
+    if (series.length >= 2) {
+      return {
+        note: `Chart uses Finnhub hourly candles for ${proxy.proxySymbol} ETF.`,
+        series,
+        seriesSource: `Finnhub stock/candle:${proxy.proxySymbol}`,
+      };
+    }
+  } catch {
+    // Fall back to a no-key daily chart endpoint when Finnhub candles are unavailable.
+  }
+
+  try {
+    const series = await fetchYahooDailySeries(proxy);
+
+    if (series.length >= 2) {
+      return {
+        note: `Chart uses Yahoo Finance history for ${proxy.proxySymbol} ETF.`,
+        series,
+        seriesSource: `Yahoo Finance chart:${proxy.historySymbol}`,
+      };
+    }
+  } catch (error) {
+    console.warn(`ETF chart history unavailable for ${proxy.proxySymbol}:`, getErrorMessage(error, "History request failed."));
+  }
+
+  return getUnavailableChart();
+}
+
+async function fetchYahooDailySeries(proxy) {
+  const url = new URL(`${YAHOO_CHART_URL}/${proxy.historySymbol}`);
+  url.searchParams.set("range", "1mo");
+  url.searchParams.set("interval", "1d");
+  url.searchParams.set("includePrePost", "false");
+
+  const diagnostics = {
+    provider: "Yahoo Finance chart",
+    requestUrl: sanitizeHistoryUrl(url),
+    symbol: proxy.proxySymbol,
+  };
+  const payload = await fetchHistoryJson(url, `Yahoo Finance chart ${proxy.proxySymbol}`, diagnostics);
+  const result = payload?.chart?.result?.[0];
+  const timestamps = result?.timestamp;
+  const closes = result?.indicators?.quote?.[0]?.close;
+
+  if (!Array.isArray(timestamps) || !Array.isArray(closes)) {
+    const error = `Yahoo Finance response missing chart data for ${proxy.proxySymbol}.`;
+    logHistoryDiagnostics({ ...diagnostics, error, points: 0 });
+    throw new Error(error);
+  }
+
+  const series = timestamps
+    .map((timestamp, index) => ({
+      time: formatYahooDate(timestamp),
+      value: Number(closes[index]),
+    }))
+    .filter((point) => point.time && Number.isFinite(point.value) && point.value > 0)
+    .map((point) => ({ ...point, value: Number(point.value.toFixed(2)) }));
+
+  if (series.length < 2) {
+    const error = `Yahoo Finance did not return enough daily history for ${proxy.proxySymbol}.`;
+    logHistoryDiagnostics({ ...diagnostics, error, points: series.length });
+    throw new Error(error);
+  }
+
+  logHistoryDiagnostics({ ...diagnostics, points: series.length });
+
+  return series;
+}
+
+async function fetchHistoryJson(url, sourceName, diagnostics) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "NEXUS-Intel/0.1",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const error = `${sourceName} responded with ${response.status}`;
+      logHistoryDiagnostics({ ...diagnostics, error, points: 0, status: response.status });
+      throw new Error(error);
+    }
+
+    diagnostics.status = response.status;
+    return response.json();
+  } catch (error) {
+    if (error instanceof Error && !error.message.includes("responded with")) {
+      logHistoryDiagnostics({ ...diagnostics, error: error.message, points: 0 });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function toLiveAsset(fallbackAsset, proxy, quote, chart = getUnavailableChart()) {
   const change = getChangePercent(quote);
   const price = Number(quote.c);
-  const hasSeries = series.length >= 2;
+  const hasSeries = chart.series.length >= 2;
 
   return {
     ...fallbackAsset,
     change,
     fallback: false,
     lastUpdatedAt: Number.isFinite(quote.t) && quote.t > 0 ? new Date(quote.t * 1000).toISOString() : new Date().toISOString(),
-    note: hasSeries ? `${proxy.note} Chart uses Finnhub hourly candles for ${proxy.proxySymbol}.` : `${proxy.note} Latest quote only.`,
+    note: `${proxy.note} ${hasSeries ? chart.note : "Chart unavailable — latest quote only."}`,
     proxySymbol: proxy.proxySymbol,
-    series: hasSeries ? series : [],
-    seriesSource: hasSeries ? `Finnhub stock/candle:${proxy.proxySymbol}` : "latest-quote-only",
+    series: hasSeries ? chart.series : [],
+    seriesSource: hasSeries ? chart.seriesSource : "latest-quote-only",
     source: `Finnhub:${proxy.proxySymbol}`,
     value: formatMarketValue(price, fallbackAsset.category),
   };
@@ -326,11 +447,42 @@ function withMockSource(asset) {
   return {
     ...asset,
     fallback: true,
-    note: asset.note.includes("Latest quote only") ? asset.note : `${asset.note} Latest quote only; live chart history unavailable.`,
+    note: asset.note.includes("latest quote only") || asset.note.includes("Latest quote only")
+      ? asset.note
+      : `${asset.note} Chart unavailable — latest quote only.`,
     series: [],
     seriesSource: "latest-quote-only",
     source: "mock",
   };
+}
+
+function getUnavailableChart() {
+  return {
+    note: "Chart unavailable — latest quote only.",
+    series: [],
+    seriesSource: "latest-quote-only",
+  };
+}
+
+function sanitizeHistoryUrl(url) {
+  const safeUrl = new URL(url.toString());
+  safeUrl.searchParams.delete("token");
+  return safeUrl.toString();
+}
+
+function logHistoryDiagnostics({ error, points, provider, requestUrl, status = "ok", symbol }) {
+  console.info(
+    `[market-history] ${symbol} ${provider} status=${status} points=${points} url=${requestUrl}${error ? ` error="${error}"` : ""}`,
+  );
+}
+
+function logFinalMarketResponse(assets) {
+  for (const proxy of liveMarketProxies) {
+    const asset = assets.find((item) => item.symbol === proxy.symbol);
+    console.info(
+      `[market-response] ${proxy.symbol}/${proxy.proxySymbol} source=${asset?.source ?? "missing"} seriesSource=${asset?.seriesSource ?? "missing"} points=${asset?.series?.length ?? 0} fallback=${asset?.fallback ?? "missing"}`,
+    );
+  }
 }
 
 function isRequiredLiveAsset(symbol) {
@@ -382,4 +534,18 @@ function formatCandleTime(timestamp) {
     month: "2-digit",
     timeZone: "UTC",
   });
+}
+
+function formatYahooDate(timestamp) {
+  if (!Number.isFinite(timestamp)) return "";
+
+  return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
+function getErrorMessage(error, fallbackMessage) {
+  return error instanceof Error ? error.message : fallbackMessage;
 }

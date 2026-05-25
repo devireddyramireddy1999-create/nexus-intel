@@ -14,7 +14,7 @@ export async function withCache(key, ttlMs, producer) {
   const produced = await producer();
   const data = isEnvelope(produced) ? produced.data : produced;
   const meta = isEnvelope(produced) ? produced.meta : {};
-  if (!meta.fallback) {
+  if (!meta.fallback && meta.cacheable !== false) {
     cache.set(key, { createdAt: now, data, meta });
   }
 
@@ -24,7 +24,7 @@ export async function withCache(key, ttlMs, producer) {
   };
 }
 
-function buildMeta({ cached, createdAt, ttlMs, fallback = true, source = "mock", error }) {
+function buildMeta({ cached, createdAt, ttlMs, fallback = true, source = "mock", error, ...rest }) {
   return {
     cached,
     cachedAt: new Date(createdAt).toISOString(),
@@ -32,6 +32,7 @@ function buildMeta({ cached, createdAt, ttlMs, fallback = true, source = "mock",
     fallback,
     source,
     ttlMs,
+    ...rest,
     ...(error ? { error } : {}),
   };
 }
