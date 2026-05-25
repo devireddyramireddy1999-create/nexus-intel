@@ -5,6 +5,7 @@ const COINGECKO_SIMPLE_PRICE_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true";
 const COINGECKO_MARKET_CHART_URL = "https://api.coingecko.com/api/v3/coins";
 const COINBASE_SPOT_URL = "https://api.coinbase.com/v2/prices";
+const DEBUG_MARKET = process.env.DEBUG_MARKET === "true";
 
 const coinMap = [
   { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
@@ -16,7 +17,10 @@ export async function getCryptoData() {
   try {
     const marketCharts = await fetchCoinGeckoMarketCharts();
     const livePrices = await fetchCoinGeckoPrices().catch((error) => {
-      console.warn("CoinGecko simple price failed; deriving crypto prices from market_chart:", getErrorMessage(error, "CoinGecko simple price failed."));
+      logCryptoDebug(
+        "CoinGecko simple price failed; deriving crypto prices from market_chart:",
+        getErrorMessage(error, "CoinGecko simple price failed."),
+      );
       return buildCoinGeckoPricesFromMarketCharts(marketCharts);
     });
     const crypto = await buildLiveCryptoData(livePrices, "coingecko", marketCharts);
@@ -76,7 +80,7 @@ async function fetchCoinGeckoMarketCharts() {
     const coin = coinMap[index];
     const points = result.status === "fulfilled" ? result.value[1].length : 0;
     const error = result.status === "rejected" ? ` error="${getErrorMessage(result.reason, "market_chart request failed")}"` : "";
-    console.info(`[crypto-history] ${coin.symbol} CoinGecko market_chart points=${points}${error}`);
+    logCryptoDebug(`[crypto-history] ${coin.symbol} CoinGecko market_chart points=${points}${error}`);
   }
 
   if (coinMap.some((coin) => !marketCharts[coin.id]?.length)) {
@@ -313,11 +317,18 @@ function getProviderChangeSource(provider) {
 }
 
 function logFinalCryptoResponse(assets, provider) {
+  if (!DEBUG_MARKET) return;
+
   for (const asset of assets) {
     console.info(
       `[crypto-response] ${asset.symbol} provider=${provider} source=${asset.source} changeAvailable=${asset.changeAvailable !== false} change=${Number(asset.change).toFixed(2)} seriesSource=${asset.seriesSource} points=${asset.series?.length ?? 0}`,
     );
   }
+}
+
+function logCryptoDebug(...messages) {
+  if (!DEBUG_MARKET) return;
+  console.info(...messages);
 }
 
 function getErrorMessage(error, fallbackMessage) {

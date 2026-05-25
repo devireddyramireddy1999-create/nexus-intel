@@ -6,6 +6,7 @@ const FRANKFURTER_LATEST_URL = "https://api.frankfurter.dev/v1/latest";
 const FRANKFURTER_HISTORICAL_URL = "https://api.frankfurter.dev/v1";
 const OPEN_EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD";
 const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+const DEBUG_MARKET = process.env.DEBUG_MARKET === "true";
 
 const liveMarketProxies = [
   {
@@ -471,12 +472,16 @@ function sanitizeHistoryUrl(url) {
 }
 
 function logHistoryDiagnostics({ error, points, provider, requestUrl, status = "ok", symbol }) {
+  if (!DEBUG_MARKET) return;
+
   console.info(
     `[market-history] ${symbol} ${provider} status=${status} points=${points} url=${requestUrl}${error ? ` error="${error}"` : ""}`,
   );
 }
 
 function logFinalMarketResponse(assets) {
+  if (!DEBUG_MARKET) return;
+
   for (const proxy of liveMarketProxies) {
     const asset = assets.find((item) => item.symbol === proxy.symbol);
     console.info(
