@@ -30,6 +30,20 @@ const tooltipStyle = {
 };
 
 export function MarketChart({ data, color = "#C9A646", height = 120, variant = "area", className }: MarketChartProps) {
+  if (data.length < 2) {
+    return (
+      <div
+        className={cn(
+          "flex min-w-0 w-full items-center justify-center rounded-md border border-primary/[0.12] bg-[#050505]/70 text-xs uppercase tracking-[0.18em] text-muted-foreground",
+          className,
+        )}
+        style={{ height }}
+      >
+        Latest quote only
+      </div>
+    );
+  }
+
   return (
     <div className={cn("h-32 min-w-0 w-full", className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">

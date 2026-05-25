@@ -231,18 +231,31 @@ function writeLiveCache<T>(path: string, result: ApiResult<T>) {
 }
 
 function buildMarketsFallback(): MarketsApiData {
+  const assets = marketAssets.map(withoutChartHistory);
+
   return {
-    assets: marketAssets,
-    quotes: marketAssets.map(toQuote),
+    assets,
+    quotes: assets.map(toQuote),
     sectorHeat,
     macroTimeline,
   };
 }
 
 function buildCryptoFallback(): CryptoApiData {
+  const assets = marketAssets.filter((asset) => asset.category === "Crypto").map(withoutChartHistory);
+
   return {
-    assets: marketAssets.filter((asset) => asset.category === "Crypto"),
+    assets,
     radar: cryptoRadar,
+  };
+}
+
+function withoutChartHistory(asset: DashboardMarketAsset): DashboardMarketAsset {
+  return {
+    ...asset,
+    note: `${asset.note} Latest quote only; live chart history unavailable.`,
+    series: [],
+    seriesSource: "latest-quote-only",
   };
 }
 

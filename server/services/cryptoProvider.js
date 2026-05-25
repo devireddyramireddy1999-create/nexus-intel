@@ -3,6 +3,7 @@ import { getCrypto } from "./marketProvider.js";
 
 const COINGECKO_SIMPLE_PRICE_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true";
+const COINGECKO_MARKET_CHART_URL = "https://api.coingecko.com/api/v3/coins";
 const COINBASE_SPOT_URL = "https://api.coinbase.com/v2/prices";
 
 const coinMap = [
@@ -13,8 +14,11 @@ const coinMap = [
 
 export async function getCryptoData() {
   try {
-    const livePrices = await fetchCoinGeckoPrices();
-    const crypto = await buildLiveCryptoData(livePrices, "coingecko");
+    const [livePrices, marketCharts] = await Promise.all([
+      fetchCoinGeckoPrices(),
+      fetchCoinGeckoMarketCharts().catch(() => ({})),
+    ]);
+    const crypto = await buildLiveCryptoData(livePrices, "coingecko", marketCharts);
 
     return {
       data: crypto,
@@ -50,6 +54,53 @@ export async function getCryptoData() {
         },
       };
     }
+  }
+}
+
+async function fetchCoinGeckoMarketCharts() {
+  const results = await Promise.allSettled(
+    coinMap.map(async (coin) => [coin.id, await fetchCoinGeckoMarketChart(coin.id)]),
+  );
+
+  return Object.fromEntries(
+    results
+      .filter((result) => result.status === "fulfilled" && result.value[1].length >= 2)
+      .map((result) => result.value),
+  );
+}
+
+async function fetchCoinGeckoMarketChart(coinId) {
+  const url = new URL(`${COINGECKO_MARKET_CHART_URL}/${coinId}/market_chart`);
+  url.searchParams.set("vs_currency", "usd");
+  url.searchParams.set("days", "1");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "NEXUS-Intel/0.1",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`CoinGecko market_chart responded with ${response.status} for ${coinId}`);
+    }
+
+    const payload = await response.json();
+    const series = (payload?.prices ?? [])
+      .map(([timestamp, price]) => ({
+        time: formatChartTime(timestamp),
+        value: Number(price),
+      }))
+      .filter((point) => point.time && Number.isFinite(point.value) && point.value > 0);
+
+    return series.length >= 2 ? series.map((point) => ({ ...point, value: Number(point.value.toFixed(2)) })) : [];
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -124,11 +175,13 @@ async function fetchCoinbaseSpotPrice(symbol) {
   }
 }
 
-async function buildLiveCryptoData(livePrices, provider) {
+async function buildLiveCryptoData(livePrices, provider, marketCharts = {}) {
   const fallback = await getCrypto();
   const liveAssets = fallback.assets.map((asset) => {
     const coin = coinMap.find((item) => item.symbol === asset.symbol);
     const priceData = coin ? livePrices[coin.id] : undefined;
+    const series = coin ? marketCharts[coin.id] ?? [] : [];
+    const hasSeries = series.length >= 2;
 
     if (!priceData?.usd) {
       throw new Error(`${getProviderLabel(provider)} response missing ${asset.symbol} price.`);
@@ -148,7 +201,9 @@ async function buildLiveCryptoData(livePrices, provider) {
       lastUpdatedAt: priceData.usd_last_updated_at
         ? new Date(priceData.usd_last_updated_at * 1000).toISOString()
         : new Date().toISOString(),
-      note: getProviderNote(provider, trend, changeAvailable),
+      note: getProviderNote(provider, trend, changeAvailable, hasSeries),
+      series: hasSeries ? series : [],
+      seriesSource: hasSeries ? `CoinGecko market_chart:${coin.id}` : "latest-quote-only",
       source: getProviderLabel(provider),
       trend,
       value: formatUsd(priceData.usd),
@@ -164,10 +219,16 @@ async function buildLiveCryptoData(livePrices, provider) {
 
 async function getFallbackCryptoData() {
   const crypto = await getCrypto();
+  const assets = crypto.assets.map((asset) => ({
+    ...asset,
+    note: asset.note.includes("Latest quote only") ? asset.note : `${asset.note} Latest quote only; live chart history unavailable.`,
+    series: [],
+    seriesSource: "latest-quote-only",
+  }));
 
   return {
-    ...crypto,
-    quotes: crypto.assets.map(toQuote),
+    assets,
+    quotes: assets.map(toQuote),
     radar: cryptoRadar,
   };
 }
@@ -196,12 +257,14 @@ function getProviderLabel(provider) {
   return provider === "coinbase" ? "Coinbase" : "CoinGecko";
 }
 
-function getProviderNote(provider, trend, changeAvailable) {
+function getProviderNote(provider, trend, changeAvailable, hasSeries) {
+  const chartNote = hasSeries ? " Chart uses CoinGecko market_chart history." : " Latest quote only.";
+
   if (!changeAvailable) {
-    return `Live ${getProviderLabel(provider)} spot price. 24h change is unavailable from this feed.`;
+    return `Live ${getProviderLabel(provider)} spot price. 24h change is unavailable from this feed.${chartNote}`;
   }
 
-  return `Live CoinGecko price. 24h trend is ${trend}.`;
+  return `Live CoinGecko price. 24h trend is ${trend}.${chartNote}`;
 }
 
 function getProviderChangeSource(provider) {
@@ -242,4 +305,15 @@ function formatUsd(value) {
 function formatSigned(value) {
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}%`;
+}
+
+function formatChartTime(timestamp) {
+  if (!Number.isFinite(timestamp)) return "";
+
+  return new Date(timestamp).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
 }

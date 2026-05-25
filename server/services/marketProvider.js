@@ -1,6 +1,7 @@
 import { macroTimeline, marketAssets, sectorHeat } from "../data/mockData.js";
 
 const FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote";
+const FINNHUB_CANDLE_URL = "https://finnhub.io/api/v1/stock/candle";
 const FRANKFURTER_LATEST_URL = "https://api.frankfurter.dev/v1/latest";
 const FRANKFURTER_HISTORICAL_URL = "https://api.frankfurter.dev/v1";
 const OPEN_EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD";
@@ -98,6 +99,7 @@ async function buildLiveMarketAssets(fallbackAssets, apiKey) {
           liveMarketProxies.map(async (proxy) => ({
             proxy,
             quote: await fetchFinnhubQuote(proxy.proxySymbol, apiKey),
+            series: await fetchFinnhubCandles(proxy.proxySymbol, apiKey).catch(() => []),
           })),
         )
       : Promise.resolve([]),
@@ -108,11 +110,11 @@ async function buildLiveMarketAssets(fallbackAssets, apiKey) {
   for (const result of proxyResults) {
     if (result.status !== "fulfilled") continue;
 
-    const { proxy, quote } = result.value;
+    const { proxy, quote, series } = result.value;
     const fallbackAsset = fallbackAssets.find((asset) => asset.symbol === proxy.symbol);
     if (!fallbackAsset) continue;
 
-    liveBySymbol.set(proxy.symbol, toLiveAsset(fallbackAsset, proxy, quote));
+    liveBySymbol.set(proxy.symbol, toLiveAsset(fallbackAsset, proxy, quote, series));
   }
 
   if (usdInrAsset) {
@@ -131,8 +133,9 @@ async function buildLiveUsdInrAsset(fallbackAsset) {
     change,
     fallback: false,
     lastUpdatedAt: quote.updatedAt,
-    note: "Live FX quote for USD/INR.",
-    series: scaleSeriesToPrice(fallbackAsset.series, quote.rate),
+    note: quote.series?.length ? "Live FX quote and historical USD/INR series." : "Live FX quote for USD/INR. Latest quote only.",
+    series: quote.series ?? [],
+    seriesSource: quote.series?.length ? quote.seriesSource : "latest-quote-only",
     source: quote.source,
     value: formatMarketValue(quote.rate, fallbackAsset.category),
   };
@@ -159,17 +162,38 @@ async function fetchFrankfurterUsdInrQuote() {
   }
 
   const previousRate = latest?.date ? await fetchFrankfurterPreviousUsdInrRate(latest.date).catch(() => undefined) : undefined;
+  const series = latest?.date ? await fetchFrankfurterUsdInrSeries(latest.date).catch(() => []) : [];
 
   return {
     rate,
     previousRate,
+    series,
+    seriesSource: series.length ? "Frankfurter historical range" : "latest-quote-only",
     source: "Frankfurter:USDINR",
     updatedAt: latest?.date ? new Date(`${latest.date}T00:00:00Z`).toISOString() : new Date().toISOString(),
   };
 }
 
+async function fetchFrankfurterUsdInrSeries(latestDate) {
+  const startDate = getOffsetDate(latestDate, -14);
+  const historicalUrl = new URL(`${FRANKFURTER_HISTORICAL_URL}/${startDate}..${latestDate}`);
+  historicalUrl.searchParams.set("from", "USD");
+  historicalUrl.searchParams.set("to", "INR");
+
+  const payload = await fetchJson(historicalUrl, "Frankfurter historical range");
+  const entries = Object.entries(payload?.rates ?? {})
+    .map(([date, rates]) => ({
+      time: date.slice(5),
+      value: Number(rates?.INR),
+    }))
+    .filter((point) => Number.isFinite(point.value) && point.value > 0)
+    .sort((a, b) => a.time.localeCompare(b.time));
+
+  return entries.length >= 2 ? entries.map((point) => ({ ...point, value: Number(point.value.toFixed(4)) })) : [];
+}
+
 async function fetchFrankfurterPreviousUsdInrRate(latestDate) {
-  const previousDate = getPreviousDate(latestDate);
+  const previousDate = getOffsetDate(latestDate, -1);
   const historicalUrl = new URL(`${FRANKFURTER_HISTORICAL_URL}/${previousDate}`);
   historicalUrl.searchParams.set("from", "USD");
   historicalUrl.searchParams.set("to", "INR");
@@ -191,6 +215,8 @@ async function fetchOpenExchangeUsdInrQuote() {
   return {
     rate,
     previousRate: undefined,
+    series: [],
+    seriesSource: "latest-quote-only",
     source: "ExchangeRate-API:USDINR",
     updatedAt: payload?.time_last_update_utc ? new Date(payload.time_last_update_utc).toISOString() : new Date().toISOString(),
   };
@@ -252,18 +278,45 @@ async function fetchFinnhubQuote(symbol, apiKey) {
   }
 }
 
-function toLiveAsset(fallbackAsset, proxy, quote) {
+async function fetchFinnhubCandles(symbol, apiKey) {
+  const url = new URL(FINNHUB_CANDLE_URL);
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - 7 * 24 * 60 * 60;
+  url.searchParams.set("symbol", symbol);
+  url.searchParams.set("resolution", "60");
+  url.searchParams.set("from", String(from));
+  url.searchParams.set("to", String(to));
+  url.searchParams.set("token", apiKey);
+
+  const payload = await fetchJson(url, `Finnhub candles ${symbol}`);
+  if (payload?.s !== "ok" || !Array.isArray(payload.c) || !Array.isArray(payload.t)) {
+    throw new Error(`Finnhub response missing candle data for ${symbol}.`);
+  }
+
+  const series = payload.c
+    .map((close, index) => ({
+      time: formatCandleTime(payload.t[index]),
+      value: Number(close),
+    }))
+    .filter((point) => point.time && Number.isFinite(point.value) && point.value > 0);
+
+  return series.length >= 2 ? series.map((point) => ({ ...point, value: Number(point.value.toFixed(2)) })) : [];
+}
+
+function toLiveAsset(fallbackAsset, proxy, quote, series = []) {
   const change = getChangePercent(quote);
   const price = Number(quote.c);
+  const hasSeries = series.length >= 2;
 
   return {
     ...fallbackAsset,
     change,
     fallback: false,
     lastUpdatedAt: Number.isFinite(quote.t) && quote.t > 0 ? new Date(quote.t * 1000).toISOString() : new Date().toISOString(),
-    note: proxy.note,
+    note: hasSeries ? `${proxy.note} Chart uses Finnhub hourly candles for ${proxy.proxySymbol}.` : `${proxy.note} Latest quote only.`,
     proxySymbol: proxy.proxySymbol,
-    series: scaleSeriesToPrice(fallbackAsset.series, price),
+    series: hasSeries ? series : [],
+    seriesSource: hasSeries ? `Finnhub stock/candle:${proxy.proxySymbol}` : "latest-quote-only",
     source: `Finnhub:${proxy.proxySymbol}`,
     value: formatMarketValue(price, fallbackAsset.category),
   };
@@ -273,6 +326,9 @@ function withMockSource(asset) {
   return {
     ...asset,
     fallback: true,
+    note: asset.note.includes("Latest quote only") ? asset.note : `${asset.note} Latest quote only; live chart history unavailable.`,
+    series: [],
+    seriesSource: "latest-quote-only",
     source: "mock",
   };
 }
@@ -294,20 +350,10 @@ function getChangePercent(quote) {
   return 0;
 }
 
-function getPreviousDate(date) {
+function getOffsetDate(date, offsetDays) {
   const parsed = new Date(`${date}T00:00:00Z`);
-  parsed.setUTCDate(parsed.getUTCDate() - 1);
+  parsed.setUTCDate(parsed.getUTCDate() + offsetDays);
   return parsed.toISOString().slice(0, 10);
-}
-
-function scaleSeriesToPrice(series, price) {
-  const previousLast = series.at(-1)?.value;
-  const scale = previousLast ? price / previousLast : 1;
-
-  return series.map((point) => ({
-    ...point,
-    value: Number((point.value * scale).toFixed(2)),
-  }));
 }
 
 function formatMarketValue(value, category) {
@@ -323,4 +369,17 @@ function formatMarketValue(value, category) {
     maximumFractionDigits: value >= 1000 ? 0 : 2,
     style: "currency",
   }).format(value);
+}
+
+function formatCandleTime(timestamp) {
+  if (!Number.isFinite(timestamp)) return "";
+
+  return new Date(timestamp * 1000).toLocaleString("en-US", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "UTC",
+  });
 }

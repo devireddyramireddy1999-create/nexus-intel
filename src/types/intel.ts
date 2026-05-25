@@ -27,6 +27,7 @@ export type MarketAsset = {
   fallback?: boolean;
   proxySymbol?: string;
   series: TrendPoint[];
+  seriesSource?: string;
   source?: string;
 };
 
