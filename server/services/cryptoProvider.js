@@ -5,7 +5,8 @@ const COINGECKO_SIMPLE_PRICE_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true";
 const COINGECKO_MARKET_CHART_URL = "https://api.coingecko.com/api/v3/coins";
 const COINBASE_SPOT_URL = "https://api.coinbase.com/v2/prices";
-const COINGECKO_MARKET_CHART_RETRY_DELAY_MS = 800;
+const COINGECKO_MARKET_CHART_CACHE_TTL_MS = 10 * 60 * 1000;
+const COINGECKO_MARKET_CHART_RETRY_DELAY_MS = 1000;
 const WARNING_THROTTLE_MS = 60_000;
 const DEBUG_MARKET = process.env.DEBUG_MARKET === "true";
 
@@ -88,7 +89,7 @@ async function fetchCoinGeckoMarketCharts() {
     };
     warnCryptoProviderFailure(
       `coingecko-chart:${coin.symbol}`,
-      `CoinGecko ${coin.symbol} market_chart failed after retry with no cached chart:`,
+      `[crypto-history] symbol=${coin.symbol} provider=CoinGecko market_chart status=${getErrorStatus(result.reason)} cached=false points=0`,
       message,
     );
   }
@@ -97,11 +98,27 @@ async function fetchCoinGeckoMarketCharts() {
 }
 
 async function fetchCoinGeckoMarketChartWithRetry(coin) {
-  let lastError;
+  const cached = lastSuccessfulMarketCharts.get(coin.id);
+  if (isFreshChartCache(cached)) {
+    logCryptoHistory({
+      cached: true,
+      points: cached.series.length,
+      provider: "CoinGecko market_chart",
+      status: "cache",
+      symbol: coin.symbol,
+    });
+    return {
+      cached: true,
+      series: cached.series,
+    };
+  }
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  let lastError;
+  const maxAttempts = cached?.series?.length >= 2 ? 1 : 2;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const series = await fetchCoinGeckoMarketChart(coin.id);
+      const { series, status } = await fetchCoinGeckoMarketChart(coin.id);
       if (series.length < 2) {
         throw new Error(`CoinGecko market_chart returned ${series.length} points for ${coin.symbol}.`);
       }
@@ -110,6 +127,13 @@ async function fetchCoinGeckoMarketChartWithRetry(coin) {
         savedAt: Date.now(),
         series,
       });
+      logCryptoHistory({
+        cached: false,
+        points: series.length,
+        provider: "CoinGecko market_chart",
+        status,
+        symbol: coin.symbol,
+      });
 
       return {
         cached: false,
@@ -117,25 +141,33 @@ async function fetchCoinGeckoMarketChartWithRetry(coin) {
       };
     } catch (error) {
       lastError = error;
-      logCryptoDebug(
-        `[crypto-history] ${coin.symbol} CoinGecko market_chart attempt=${attempt} failed: ${getErrorMessage(error, "market_chart request failed")}`,
-      );
+      logCryptoHistory({
+        cached: false,
+        error: getErrorMessage(error, "market_chart request failed"),
+        points: 0,
+        provider: "CoinGecko market_chart",
+        status: getErrorStatus(error),
+        symbol: coin.symbol,
+      });
 
-      if (attempt === 1) {
+      if (cached?.series?.length >= 2) {
+        logCryptoHistory({
+          cached: true,
+          points: cached.series.length,
+          provider: "CoinGecko market_chart",
+          status: "stale-cache",
+          symbol: coin.symbol,
+        });
+        return {
+          cached: true,
+          series: cached.series,
+        };
+      }
+
+      if (attempt < maxAttempts) {
         await delay(COINGECKO_MARKET_CHART_RETRY_DELAY_MS);
       }
     }
-  }
-
-  const cached = lastSuccessfulMarketCharts.get(coin.id);
-  if (cached?.series?.length >= 2) {
-    logCryptoDebug(
-      `[crypto-history] ${coin.symbol} using cached CoinGecko market_chart points=${cached.series.length} cachedAt=${new Date(cached.savedAt).toISOString()}`,
-    );
-    return {
-      cached: true,
-      series: cached.series,
-    };
   }
 
   throw new Error(
@@ -153,15 +185,12 @@ async function fetchCoinGeckoMarketChart(coinId) {
 
   try {
     const response = await fetch(url, {
-      headers: {
-        accept: "application/json",
-        "user-agent": "NEXUS-Intel/0.1",
-      },
+      headers: getCoinGeckoHeaders(),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`CoinGecko market_chart responded with ${response.status} for ${coinId}`);
+      throw createHttpError(`CoinGecko market_chart responded with ${response.status} for ${coinId}`, response.status);
     }
 
     const payload = await response.json();
@@ -172,7 +201,10 @@ async function fetchCoinGeckoMarketChart(coinId) {
       }))
       .filter((point) => point.time && Number.isFinite(point.value) && point.value > 0);
 
-    return series.length >= 2 ? series.map((point) => ({ ...point, value: Number(point.value.toFixed(2)) })) : [];
+    return {
+      series: series.length >= 2 ? series.map((point) => ({ ...point, value: Number(point.value.toFixed(2)) })) : [],
+      status: response.status,
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -184,15 +216,12 @@ async function fetchCoinGeckoPrices() {
 
   try {
     const response = await fetch(COINGECKO_SIMPLE_PRICE_URL, {
-      headers: {
-        accept: "application/json",
-        "user-agent": "NEXUS-Intel/0.1",
-      },
+      headers: getCoinGeckoHeaders(),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`CoinGecko responded with ${response.status}`);
+      throw createHttpError(`CoinGecko responded with ${response.status}`, response.status);
     }
 
     return response.json();
@@ -479,6 +508,28 @@ function getProviderChangeSource(provider) {
   return provider === "coinbase" ? "unavailable" : "coingecko_24h";
 }
 
+function getCoinGeckoHeaders() {
+  const headers = {
+    accept: "application/json",
+    "user-agent": "NEXUS-Intel/0.1",
+  };
+  const demoApiKey = process.env.COINGECKO_DEMO_API_KEY?.trim();
+
+  if (demoApiKey) {
+    headers["x-cg-demo-api-key"] = demoApiKey;
+  }
+
+  return headers;
+}
+
+function isFreshChartCache(cached) {
+  return Boolean(
+    cached?.series?.length >= 2 &&
+    Number.isFinite(cached.savedAt) &&
+    Date.now() - cached.savedAt < COINGECKO_MARKET_CHART_CACHE_TTL_MS,
+  );
+}
+
 function cacheCoinGeckoStats(coinId, priceData) {
   const usd = Number(priceData.usd);
   const rawChange = Number(priceData.usd_24h_change);
@@ -531,6 +582,16 @@ function logCryptoDebug(...messages) {
   console.info(...messages);
 }
 
+function logCryptoHistory({ cached, error, points, provider, status, symbol }) {
+  const message = `[crypto-history] symbol=${symbol} provider=${provider} status=${status ?? "unknown"} cached=${Boolean(cached)} points=${points ?? 0}`;
+  if (error) {
+    logCryptoDebug(`${message} error="${error}"`);
+    return;
+  }
+
+  logCryptoDebug(message);
+}
+
 function warnCryptoProviderFailure(key, prefix, message) {
   const now = Date.now();
   const lastWarningAt = warningTimestamps.get(key) ?? 0;
@@ -538,6 +599,22 @@ function warnCryptoProviderFailure(key, prefix, message) {
 
   warningTimestamps.set(key, now);
   console.warn(prefix, message);
+}
+
+function createHttpError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function getErrorStatus(error) {
+  if (error && typeof error === "object" && Number.isFinite(error.status)) {
+    return error.status;
+  }
+
+  const message = getErrorMessage(error, "");
+  const match = message.match(/\b([1-5]\d{2})\b/);
+  return match?.[1] ?? "error";
 }
 
 function getErrorMessage(error, fallbackMessage) {
