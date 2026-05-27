@@ -89,6 +89,13 @@ export type BriefingSection = {
   items: string[];
 };
 
+export type ChangeClassification = "New" | "Improved" | "Worsened" | "Unchanged" | "Repeated theme";
+
+export type ChangeInsight = {
+  classification: ChangeClassification;
+  text: string;
+};
+
 export type GeneratedBriefing = {
   dataQuality?: string;
   mode: BriefingMode;

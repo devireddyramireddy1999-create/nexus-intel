@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrainCircuit, Coins, Globe2, LayoutDashboard, ShieldAlert, Target } from "lucide-react";
 import { BriefingOutput } from "@/components/dashboard/BriefingOutput";
 import { CommandBar } from "@/components/dashboard/CommandBar";
@@ -10,7 +10,8 @@ import { SignalPanel } from "@/components/dashboard/SignalPanel";
 import { TopStories } from "@/components/dashboard/TopStories";
 import { formatLocalTime } from "@/lib/utils";
 import { briefingService } from "@/services/briefingService";
-import type { BriefingMode, GeneratedBriefing } from "@/types/intel";
+import { CHANGE_INTELLIGENCE_EVENT, getChangeInsights } from "@/services/changeIntelligenceService";
+import type { BriefingMode, ChangeInsight, GeneratedBriefing } from "@/types/intel";
 
 const savedBriefingKey = "nexus-intel-last-briefing";
 
@@ -21,6 +22,16 @@ export function DashboardPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSavedBriefing, setIsSavedBriefing] = useState(() => Boolean(readSavedBriefing()));
   const [copied, setCopied] = useState(false);
+  const [changeInsights, setChangeInsights] = useState<ChangeInsight[]>(() => getChangeInsights());
+
+  useEffect(() => {
+    const handleChangeIntelligence = () => {
+      setChangeInsights(getChangeInsights());
+    };
+
+    window.addEventListener(CHANGE_INTELLIGENCE_EVENT, handleChangeIntelligence);
+    return () => window.removeEventListener(CHANGE_INTELLIGENCE_EVENT, handleChangeIntelligence);
+  }, []);
 
   const generateBriefing = async (command: string, options: { localGreeting?: string } = {}) => {
     setIsGenerating(true);
@@ -69,7 +80,7 @@ export function DashboardPage() {
     if (!briefing) return;
 
     try {
-      await navigator.clipboard.writeText(formatBriefingForClipboard(briefing));
+      await navigator.clipboard.writeText(formatBriefingForClipboard(briefing, changeInsights));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -127,6 +138,7 @@ export function DashboardPage() {
 
         <BriefingOutput
           briefing={briefing}
+          changeInsights={changeInsights}
           error={commandError}
           isLoading={isGenerating}
           isSavedBriefing={isSavedBriefing}
@@ -183,7 +195,10 @@ function clearSavedBriefing() {
   window.localStorage.removeItem(savedBriefingKey);
 }
 
-function formatBriefingForClipboard(briefing: GeneratedBriefing) {
+function formatBriefingForClipboard(briefing: GeneratedBriefing, changeInsights: ChangeInsight[] = []) {
+  const changes = changeInsights.length
+    ? `What Changed\n${changeInsights.map((insight) => `- ${insight.classification}: ${insight.text}`).join("\n")}`
+    : "";
   const sections = briefing.sections
     .map((section) => {
       const items = section.items.map((item) => `- ${item}`).join("\n");
@@ -197,6 +212,7 @@ function formatBriefingForClipboard(briefing: GeneratedBriefing) {
     `Mode: ${briefing.mode}`,
     briefing.dataQuality ? `Data quality: ${briefing.dataQuality}` : "",
     briefing.headline,
+    changes,
     sections,
   ]
     .filter(Boolean)

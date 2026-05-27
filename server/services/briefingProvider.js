@@ -7,6 +7,15 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const OPENAI_TIMEOUT_MS = 25_000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 const NO_PERSONAL_DATA_MESSAGE = "No personal calendar/task data connected yet. Focus on review, planning, and execution discipline.";
+const LOW_DATA_QUALITY_MESSAGE = "Signal quality is limited; treat this brief as directional.";
+const NO_MAJOR_WORLD_SHIFT_MESSAGE = "No major global regime shift detected; current risk is mostly market and headline-driven.";
+
+const majorWorldSituationPattern =
+  /\b(war|conflict|ceasefire|missile|attack|military|diplomacy|sanction|sanctions|border|security|election|elections|policy|tariff|trade|central bank|rates|inflation|energy|oil|shipping|strait|hormuz|supply chain|russia|ukraine|iran|israel|china|taiwan|federal reserve|treasury|dollar|recession|global economy|market shock|systemic risk)\b/i;
+const majorAiTechWorldPattern =
+  /\b(openai|nvidia|semiconductor|semiconductors|chip|chips|cybersecurity|data center|export control|export controls|ai regulation|artificial intelligence regulation|cloud infrastructure|power demand)\b/i;
+const lowWorldRelevancePattern =
+  /\b(startup application|application deadline|applications open|funding announcement|fundraise|seed round|series a|product launch|launches new|generic company|press release|company pr|appointment|appoints|hiring|promotion|human-interest|human interest|wearable|gadget|review|deal|coupon|world cup|football|soccer|nba|nfl|cricket)\b/i;
 
 const briefingWhyItMattersByCategory = {
   world: "This changes the macro backdrop that influences rates, trade flows, policy risk, and cross-asset positioning.",
@@ -119,7 +128,7 @@ async function requestOpenAIBriefing({ apiKey, context, mode }) {
           {
             role: "system",
             content:
-              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. The greeting must exactly match the required greeting supplied in the prompt, such as Good morning, Ram. Never use Sir. Use exact market and crypto values supplied in the prompt. If crypto 24h change is unavailable, say it is unavailable and do not imply momentum from spot-only data. If data is thin, say so plainly. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
+              "You are NEXUS Intel, a concise personal intelligence analyst. Produce a grounded daily briefing from the supplied live data only. Do not invent prices, articles, sources, personal tasks, calendar events, deadlines, meetings, memos, calls, or user obligations. The greeting must exactly match the required greeting supplied in the prompt, such as Good morning, Ram. Never use Sir. Use exact market and crypto values supplied in the prompt. If crypto 24h change is unavailable, say it is unavailable and do not imply momentum from spot-only data. If signal quality is thin, say so plainly in user-facing language. Do not expose implementation details, connector mechanics, browser storage, endpoint mechanics, or code object names. Write direct useful intelligence with clear why-it-matters and what-to-watch-today language. Avoid buzzwords.",
           },
           {
             role: "user",
@@ -170,7 +179,7 @@ function buildPromptPayload(context, mode) {
   const tacticalWatchItems = buildTacticalActionList(context, newsItems);
 
   return {
-    instruction: "Create a NEXUS Daily Briefing in structured JSON. Prioritize high-impact stories and ignore low-quality appointment/personnel/company fluff unless there are not enough better stories.",
+    instruction: "Create a NEXUS Daily Briefing in structured JSON. Prioritize high-impact stories. Exclude appointment/personnel/company fluff, startup deadlines, product launches, generic PR, random funding items, and isolated human-interest stories from world/geopolitical context unless they are clearly market-moving or globally relevant.",
     mode,
     requiredSections: Object.values(sectionTitles),
     userInputContext: {
@@ -182,14 +191,14 @@ function buildPromptPayload(context, mode) {
       markets: "Company stock moves, Walmart or other retailer stock/earnings/news, inflation, central banks, oil, dollar, stocks, economy, and treasury stories belong in Market Snapshot or Executive Summary, not World Situation.",
       geopolitics: "War, sanctions, military, diplomacy, border, security, election conflict, oil conflict, Iran, Russia, Ukraine, or regional conflict belong in Geopolitical Risk.",
       aiTech: "Artificial intelligence, AI, chips, semiconductors, cybersecurity, OpenAI, and Nvidia belong in AI & Tech Signals.",
-      world: "Broad global policy, elections, conflict, and trade with no direct market/security/AI angle belong in World Situation.",
+      world: "World Situation is only for wars/conflict, geopolitical tension, elections/policy, sanctions, energy/shipping/security, central banks/rates/inflation, major economic risks, and major AI/tech market-moving developments. If no strong global item exists, say there is no major global regime shift.",
     },
     dataFreshness: {
       generatedAt: context.generatedAt,
       confidenceDataQuality: feedQuality,
       marketSources: uniqueValues(marketAssets.map((asset) => asset.source)),
       cryptoSources: uniqueValues(cryptoAssets.map((asset) => asset.source)),
-      newsSources: uniqueValues(newsItems.map((item) => item.sourceType)),
+      newsSources: uniqueValues(newsItems.map((item) => formatSourceTypeForPrompt(item.sourceType))),
     },
     exactOutputRequirements: {
       greeting: context.requiredGreeting,
@@ -244,8 +253,8 @@ function buildPromptPayload(context, mode) {
     })),
     personalDataPolicy: {
       connected: personalPriorities.length > 0,
-      fallbackRecommendation: NO_PERSONAL_DATA_MESSAGE,
-      rule: "Do not invent personal tasks, calendar events, deadlines, meetings, memos, or reminders. If no personal priority data is supplied, use the fallback recommendation exactly.",
+      defaultRecommendation: NO_PERSONAL_DATA_MESSAGE,
+      rule: "Do not invent personal tasks, calendar events, deadlines, meetings, memos, or reminders. If no personal priority data is supplied, use the default recommendation exactly.",
     },
     personalPriorities: personalPriorities.map((priority) => ({
       title: priority.title,
@@ -261,15 +270,17 @@ function buildPromptPayload(context, mode) {
       `Market Snapshot must explicitly state these proxy mappings and exact values: ${requiredMarketSnapshot}`,
       "Include source names inline for factual claims, for example '(CNBC Markets)' or '(BBC World)'. Do not put raw URLs into every sentence; URLs are supplied for traceability.",
       "Treat rankedNews as deduplicated story clusters. Do not repeat the same title or story cluster across multiple news sections.",
+      "Do not expose internal implementation wording or infrastructure terms in any user-facing sentence.",
       "Every news-driven sentence in World Situation, Geopolitical Risk, Market Snapshot, and AI & Tech Signals must include a source name near the claim.",
       "Do not cite or summarize low-impact appointment/personnel news unless no higher-impact stories are available.",
-      "The executive summary should be direct: what happened, why it matters, and what to watch today.",
-      "Personal Priority Recommendation must use the exact fallback text if personalDataPolicy.connected is false.",
+      `World Situation must include only major world-relevant topics. Exclude startup deadlines, small product launches, generic company PR, random funding announcements, and isolated human-interest stories. If there is no strong world signal, write exactly: "${NO_MAJOR_WORLD_SHIFT_MESSAGE}"`,
+      "The executive summary should explain what matters most, whether markets are confirming or ignoring headline risk, and what to watch next.",
+      "Personal Priority Recommendation must use the exact default text if personalDataPolicy.connected is false.",
       "Keep each section clear enough to render as a dashboard bullet.",
       "Action list must contain 3 to 5 tactical watch items for today, not generic productivity advice.",
       "If any crypto 24h change is unavailable, do not say to use 24h changes as a risk-temperature or momentum check.",
       "Mention live proxy symbols when discussing SPX, NDX, XAU, or WTI if relevant.",
-      "Include one 'Confidence / Data Quality: ...' sentence in the Executive Summary.",
+      `Include one 'Confidence / Data Quality: ...' sentence in the Executive Summary. If quality is Low, use this exact wording after the label: ${LOW_DATA_QUALITY_MESSAGE}`,
     ],
   };
 }
@@ -330,48 +341,49 @@ function validateAiBriefing(value, context) {
   }
 
   const feedQuality = getFeedQuality(context);
-  const executiveSummary = stripSirHonorific(ensureDataQualityLine(value.executiveSummary, feedQuality));
+  const executiveSummary = sanitizeUserFacingText(ensureDataQualityLine(value.executiveSummary, feedQuality));
   const cryptoWatch = stripSirHonorific(mergeRequiredReadout(buildCryptoWatchText(context), value.cryptoWatch));
   const greeting = context.requiredGreeting ?? getGreetingForCommand(context.normalizedCommand);
   const marketSnapshot = stripSirHonorific(mergeRequiredReadout(buildMarketProxySnapshotText(context), value.marketSnapshot));
   const personalPriorityRecommendation = context.personalPriorities?.length
-    ? stripSirHonorific(value.personalPriorityRecommendation)
+    ? sanitizeUserFacingText(value.personalPriorityRecommendation)
     : NO_PERSONAL_DATA_MESSAGE;
-  const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5).map(stripSirHonorific);
+  const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5).map(sanitizeUserFacingText);
 
   return {
     ...value,
     actionListForTheDay,
-    cryptoWatch,
+    cryptoWatch: sanitizeUserFacingText(cryptoWatch),
     executiveSummary,
     greeting,
-    headline: stripSirHonorific(value.headline),
-    geopoliticalRisk: stripSirHonorific(value.geopoliticalRisk),
-    aiTechSignals: stripSirHonorific(value.aiTechSignals),
-    marketSnapshot,
+    headline: sanitizeUserFacingText(value.headline),
+    geopoliticalRisk: sanitizeUserFacingText(value.geopoliticalRisk),
+    aiTechSignals: sanitizeUserFacingText(value.aiTechSignals),
+    marketSnapshot: sanitizeUserFacingText(marketSnapshot),
     personalPriorityRecommendation,
-    worldSituation: stripSirHonorific(value.worldSituation),
+    worldSituation: buildWorldSituationText(context, value.worldSituation),
   };
 }
 
 function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toISOString(), dataQuality = "Low") {
+  const displayDataQuality = getDataQualityDisplay(dataQuality);
   const sections = [
-    { title: sectionTitles.greeting, items: [briefing.greeting] },
-    { title: sectionTitles.executiveSummary, items: [briefing.executiveSummary] },
-    { title: sectionTitles.worldSituation, items: [briefing.worldSituation] },
-    { title: sectionTitles.geopoliticalRisk, items: [briefing.geopoliticalRisk] },
-    { title: sectionTitles.marketSnapshot, items: [briefing.marketSnapshot] },
-    { title: sectionTitles.cryptoWatch, items: [briefing.cryptoWatch] },
-    { title: sectionTitles.aiTechSignals, items: [briefing.aiTechSignals] },
-    { title: sectionTitles.personalPriorityRecommendation, items: [briefing.personalPriorityRecommendation] },
-    { title: sectionTitles.actionListForTheDay, items: briefing.actionListForTheDay },
+    { title: sectionTitles.greeting, items: [sanitizeUserFacingText(briefing.greeting)] },
+    { title: sectionTitles.executiveSummary, items: [sanitizeUserFacingText(briefing.executiveSummary)] },
+    { title: sectionTitles.worldSituation, items: [sanitizeUserFacingText(briefing.worldSituation)] },
+    { title: sectionTitles.geopoliticalRisk, items: [sanitizeUserFacingText(briefing.geopoliticalRisk)] },
+    { title: sectionTitles.marketSnapshot, items: [sanitizeUserFacingText(briefing.marketSnapshot)] },
+    { title: sectionTitles.cryptoWatch, items: [sanitizeUserFacingText(briefing.cryptoWatch)] },
+    { title: sectionTitles.aiTechSignals, items: [sanitizeUserFacingText(briefing.aiTechSignals)] },
+    { title: sectionTitles.personalPriorityRecommendation, items: [sanitizeUserFacingText(briefing.personalPriorityRecommendation)] },
+    { title: sectionTitles.actionListForTheDay, items: briefing.actionListForTheDay.map(sanitizeUserFacingText) },
   ];
 
   return {
-    dataQuality,
+    dataQuality: displayDataQuality,
     mode,
     generatedAt,
-    headline: briefing.headline,
+    headline: sanitizeUserFacingText(briefing.headline),
     sections: mode === "quick" ? sections.slice(0, 5) : sections,
   };
 }
@@ -386,7 +398,7 @@ function buildFallbackBriefing({ context, mode, reason }) {
   const strongest = [...marketAssets].sort((a, b) => b.change - a.change)[0];
   const weakest = [...marketAssets].sort((a, b) => a.change - b.change)[0];
   const topStory = newsItems[0];
-  const worldStory = newsItems.find((item) => item.category === "world") ?? topStory;
+  const worldStory = selectStrongWorldSituationStory(newsItems);
   const geoStory = newsItems.find((item) => item.category === "geopolitics") ?? topStory;
   const marketStory = newsItems.find((item) => item.category === "markets") ?? topStory;
   const aiStory = newsItems.find((item) => item.category === "ai-tech") ?? topStory;
@@ -397,10 +409,7 @@ function buildFallbackBriefing({ context, mode, reason }) {
       ? `${aiStory.source}: ${aiStory.summary} ${aiStory.marketImpact}`
       : techSignals.slice(0, 2).map((signal) => `${signal.label}: ${signal.detail}`).join(" "),
     cryptoWatch: buildCryptoWatchText(context),
-    executiveSummary:
-      topStory && strongest && weakest
-        ? `${topStory.title} (${topStory.source}) is the highest-weight headline. ${strongest.name} leads at ${formatSigned(strongest.change)}, while ${weakest.name} is the weakest cross-asset read at ${formatSigned(weakest.change)}. Confidence / Data Quality: Low because OpenAI fallback was used.`
-        : "NEXUS has live feeds online, but the briefing fallback could not identify a complete cross-asset signal set.",
+    executiveSummary: buildFallbackExecutiveSummary({ context, newsItems, strongest, weakest, topStory }),
     geopoliticalRisk: geoStory
       ? `${geoStory.title} (${geoStory.source}): ${geoStory.summary} ${geoStory.whyItMatters} ${geoStory.marketImpact}`
       : "Geopolitical risk should be monitored through energy, shipping, and defense channels.",
@@ -409,11 +418,11 @@ function buildFallbackBriefing({ context, mode, reason }) {
     marketSnapshot:
       strongest && weakest
         ? `${buildMarketProxySnapshotText(context)} ${strongest.name} is the positive signal at ${formatSigned(strongest.change)}. ${weakest.name} is the pressure point at ${formatSigned(weakest.change)}. ${marketStory ? `${marketStory.title} (${marketStory.source}) is the highest-ranked market story. ` : ""}Proxy data remains the live market lens.`
-        : "Market data is available through the backend, but no complete strongest or weakest signal was identified.",
+        : "Market data is available, but no complete strongest or weakest signal was identified.",
     personalPriorityRecommendation: priority ? `${priority.title}: ${priority.nextAction}` : NO_PERSONAL_DATA_MESSAGE,
     worldSituation: worldStory
-      ? `${worldStory.title} (${worldStory.source}): ${worldStory.summary} ${worldStory.whyItMatters}`
-      : "World news is available through live RSS feeds, with local fallback ready if feeds degrade.",
+      ? formatWorldSituationStory(worldStory)
+      : NO_MAJOR_WORLD_SHIFT_MESSAGE,
   };
 
   return mapAiBriefingToUiBriefing(fallback, mode, context.generatedAt, getFeedQuality(context, true));
@@ -476,7 +485,7 @@ function buildMarketProxySnapshotText(context) {
       const asset = marketAssets.find((item) => item.symbol === symbol);
       if (!asset) return `${symbol} uses ${proxySymbol}: unavailable.`;
       if (asset.fallback) {
-        return `${symbol} uses ${proxySymbol}: live proxy unavailable; fallback ${symbol} ${asset.value} (${formatSigned(asset.change)}).`;
+        return `${symbol} uses ${proxySymbol}: live proxy unavailable; showing latest saved ${symbol} ${asset.value} (${formatSigned(asset.change)}).`;
       }
 
       return `${symbol} uses ${proxySymbol}: ${proxySymbol} ${asset.value} (${formatSigned(asset.change)}).`;
@@ -539,6 +548,138 @@ function mergeRequiredReadout(requiredReadout, generatedText) {
 
 function stripSirHonorific(text) {
   return typeof text === "string" ? text.replace(/\bSir\b[,.]?\s*/gi, "").trim() : text;
+}
+
+function sanitizeUserFacingText(text) {
+  if (typeof text !== "string") return text;
+
+  return stripSirHonorific(text)
+    .replace(/\b(?:because\s+)?OpenAI fallback was used\.?/gi, LOW_DATA_QUALITY_MESSAGE)
+    .replace(/\bOpenAI fallback\b/gi, "signal quality")
+    .replace(/\bfallback\b/gi, "backup signal")
+    .replace(/\bprovider\b/gi, "source")
+    .replace(/\blocalStorage\b/gi, "saved app data")
+    .replace(/\bapi\b/gi, "data feed")
+    .replace(/\bmarket_chart\b/gi, "market history")
+    .replace(/\bsnapshot object\b/gi, "saved comparison state")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getDataQualityDisplay(dataQuality) {
+  return dataQuality === "Low" ? LOW_DATA_QUALITY_MESSAGE : dataQuality;
+}
+
+function formatSourceTypeForPrompt(sourceType) {
+  if (sourceType === "rss") return "live news feed";
+  if (sourceType === "fallback") return "backup news feed";
+  return sourceType ?? "news feed";
+}
+
+function buildWorldSituationText(context, generatedText) {
+  const strongStory = selectStrongWorldSituationStory(context.news.newsItems ?? []);
+  const cleanText = sanitizeUserFacingText(generatedText);
+
+  if (!strongStory) return NO_MAJOR_WORLD_SHIFT_MESSAGE;
+  if (!isStrongWorldSituationText(cleanText)) return formatWorldSituationStory(strongStory);
+
+  return cleanText;
+}
+
+function formatWorldSituationStory(story) {
+  const summary = story.summary ? `${story.summary}` : "This is the highest-relevance global signal in the current feed.";
+  const why = story.whyItMatters ? ` ${story.whyItMatters}` : "";
+
+  return sanitizeUserFacingText(`${story.title} (${story.source}) is the main global signal. ${summary}${why}`);
+}
+
+function selectStrongWorldSituationStory(newsItems) {
+  return rankStories(newsItems).find(isStrongWorldSituationStory);
+}
+
+function isStrongWorldSituationStory(item) {
+  const text = `${item.title ?? ""} ${item.summary ?? ""} ${item.whyItMatters ?? ""} ${item.marketImpact ?? ""}`.toLowerCase();
+
+  if (isLowImpactStory(item)) return false;
+  if (lowWorldRelevancePattern.test(text) && !majorWorldSituationPattern.test(text) && !majorAiTechWorldPattern.test(text)) return false;
+
+  return majorWorldSituationPattern.test(text) || majorAiTechWorldPattern.test(text);
+}
+
+function isStrongWorldSituationText(text) {
+  if (typeof text !== "string" || !text.trim()) return false;
+  if (text.includes(NO_MAJOR_WORLD_SHIFT_MESSAGE)) return true;
+  if (lowWorldRelevancePattern.test(text) && !majorWorldSituationPattern.test(text) && !majorAiTechWorldPattern.test(text)) return false;
+
+  return majorWorldSituationPattern.test(text) || majorAiTechWorldPattern.test(text);
+}
+
+function buildFallbackExecutiveSummary({ context, newsItems, strongest, weakest, topStory }) {
+  const leadStory = selectStrongWorldSituationStory(newsItems) ?? topStory;
+  const lead = leadStory
+    ? `${leadStory.title} (${leadStory.source}) is the main item worth attention.`
+    : "No single dominant global headline is strong enough to define the session.";
+  const marketRead = buildMarketConfirmationSentence(context);
+  const watch = buildWatchNextSentence(context, newsItems);
+
+  return sanitizeUserFacingText(`${lead} ${marketRead} ${watch} ${getDataQualityLine("Low")}`);
+}
+
+function buildMarketConfirmationSentence(context) {
+  const marketAssets = context.markets.assets ?? [];
+  const spy = marketAssets.find((asset) => asset.symbol === "SPX");
+  const qqq = marketAssets.find((asset) => asset.symbol === "NDX");
+  const gld = marketAssets.find((asset) => asset.symbol === "XAU");
+  const uso = marketAssets.find((asset) => asset.symbol === "WTI");
+  const equityAverage = averageChange([spy, qqq]);
+  const hedgeAverage = averageChange([gld, uso]);
+
+  if (equityAverage > 0.15 && hedgeAverage <= 0.15) {
+    return "Markets are absorbing headline risk for now; oil and gold are not confirming a broad risk-off move.";
+  }
+  if (equityAverage < -0.15 && hedgeAverage > 0.15) {
+    return "Markets are showing stress confirmation through weaker equities and firmer macro hedges.";
+  }
+  if (Math.abs(equityAverage - hedgeAverage) <= 0.3) {
+    return "Market confirmation is mixed, so treat the news signal as directional rather than decisive.";
+  }
+
+  const strongestText = strongestAssetText([spy, qqq, gld, uso], "strongest");
+  const weakestText = strongestAssetText([spy, qqq, gld, uso], "weakest");
+  return `${strongestText} ${weakestText} Cross-asset confirmation is uneven.`;
+}
+
+function buildWatchNextSentence(context, newsItems) {
+  const watchItems = [];
+  const hasGeopolitics = newsItems.some((item) => classifyBriefingStory(item) === "geopolitics");
+  const hasAiTech = newsItems.some((item) => classifyBriefingStory(item) === "ai-tech" && !isLowImpactStory(item));
+
+  if (hasGeopolitics) watchItems.push("oil", "gold", "policy or military follow-through");
+  watchItems.push("SPY/QQQ risk appetite", "BTC/ETH confirmation");
+  if (hasAiTech) watchItems.push("AI/chip read-through");
+
+  return `Watch ${uniqueValues(watchItems).slice(0, 5).join(", ")} next.`;
+}
+
+function averageChange(assets) {
+  const values = assets
+    .map((asset) => asset?.change)
+    .filter((value) => typeof value === "number" && Number.isFinite(value));
+
+  if (!values.length) return 0;
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function strongestAssetText(assets, direction) {
+  const sorted = assets
+    .filter((asset) => asset && typeof asset.change === "number" && Number.isFinite(asset.change))
+    .sort((a, b) => direction === "strongest" ? b.change - a.change : a.change - b.change);
+  const asset = sorted[0];
+
+  if (!asset) return direction === "strongest" ? "No clear strongest market signal." : "No clear weakest market signal.";
+
+  return `${asset.name} is the ${direction} market read at ${formatSigned(asset.change)}.`;
 }
 
 function selectBriefingStories(newsItems, mode) {
@@ -672,13 +813,19 @@ function getFeedQuality(context, openAiFallback = false) {
 }
 
 function ensureDataQualityLine(text, feedQuality) {
-  const dataQualityLine = `Confidence / Data Quality: ${feedQuality}.`;
+  const dataQualityLine = getDataQualityLine(feedQuality);
 
   if (/Confidence\s*\/\s*Data Quality:/i.test(text)) {
     return text.replace(/Confidence\s*\/\s*Data Quality:\s*[^.]+\.?/i, dataQualityLine);
   }
 
   return `${text} ${dataQualityLine}`;
+}
+
+function getDataQualityLine(feedQuality) {
+  return feedQuality === "Low"
+    ? `Confidence / Data Quality: ${LOW_DATA_QUALITY_MESSAGE}`
+    : `Confidence / Data Quality: ${feedQuality}.`;
 }
 
 function extractResponseText(payload) {

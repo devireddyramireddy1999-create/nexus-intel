@@ -4,10 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatLocalTime } from "@/lib/utils";
-import type { GeneratedBriefing } from "@/types/intel";
+import type { ChangeInsight, GeneratedBriefing } from "@/types/intel";
 
 type BriefingOutputProps = {
   briefing: GeneratedBriefing | null;
+  changeInsights?: ChangeInsight[];
   copied?: boolean;
   error?: string;
   isLoading?: boolean;
@@ -19,6 +20,7 @@ type BriefingOutputProps = {
 
 export function BriefingOutput({
   briefing,
+  changeInsights = [],
   copied = false,
   error,
   isLoading = false,
@@ -126,6 +128,26 @@ export function BriefingOutput({
                 </div>
                 <p className="mt-2 break-words text-base font-semibold leading-7 text-foreground sm:text-lg">{briefing.headline}</p>
               </div>
+              {changeInsights.length ? (
+                <section className="min-w-0">
+                  <h3 className="mb-2 break-words text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:tracking-[0.2em]">
+                    What Changed
+                  </h3>
+                  <ul className="space-y-2">
+                    {changeInsights.map((insight) => (
+                      <li
+                        key={`${insight.classification}-${insight.text}`}
+                        className="min-w-0 rounded-md border border-primary/[0.14] bg-[#0a0a0a]/75 px-3 py-2 text-sm leading-6 text-foreground"
+                      >
+                        <div className="flex min-w-0 flex-wrap items-start gap-2">
+                          <Badge variant={getChangeBadgeVariant(insight.classification)}>{insight.classification}</Badge>
+                          <span className="min-w-0 flex-1 break-words">{insight.text}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               {briefing.sections.map((section) => (
                 <section key={section.title} className="min-w-0">
                   <h3 className="mb-2 break-words text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:tracking-[0.2em]">
@@ -163,4 +185,12 @@ export function BriefingOutput({
       </CardContent>
     </Card>
   );
+}
+
+function getChangeBadgeVariant(classification: ChangeInsight["classification"]) {
+  if (classification === "Improved") return "success";
+  if (classification === "Worsened") return "danger";
+  if (classification === "New") return "default";
+  if (classification === "Repeated theme") return "warning";
+  return "secondary";
 }

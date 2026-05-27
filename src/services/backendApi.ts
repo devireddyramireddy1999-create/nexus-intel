@@ -18,6 +18,12 @@ import type {
   WatchItem,
 } from "@/types/intel";
 import { buildAccessHeaders, clearAccessToken } from "@/services/accessService";
+import {
+  recordBriefingSnapshot,
+  recordCryptoSnapshot,
+  recordMarketSnapshot,
+  recordNewsSnapshot,
+} from "@/services/changeIntelligenceService";
 import type { MarketAssetQuote } from "@/services/marketService";
 import type { NewsItem } from "@/services/newsService";
 
@@ -76,24 +82,32 @@ const retryDelays = [800, 1500, 2500];
 
 export async function getMarketsData(): Promise<ApiResult<MarketsApiData>> {
   const response = await fetchWithFallback("/api/markets", buildMarketsFallback);
-  return normalizeMarketsResult(response);
+  const normalized = normalizeMarketsResult(response);
+  recordMarketSnapshot(normalized.data, normalized.meta);
+  return normalized;
 }
 
 export async function getCryptoData(): Promise<ApiResult<CryptoApiData>> {
   const response = await fetchWithFallback("/api/crypto", buildCryptoFallback);
-  return normalizeCryptoResult(response);
+  const normalized = normalizeCryptoResult(response);
+  recordCryptoSnapshot(normalized.data, normalized.meta);
+  return normalized;
 }
 
 export async function getNewsData(): Promise<ApiResult<NewsApiData>> {
-  return fetchWithFallback("/api/news", buildNewsFallback);
+  const response = await fetchWithFallback("/api/news", buildNewsFallback);
+  recordNewsSnapshot(response.data, response.meta);
+  return response;
 }
 
 export async function postBriefing<T>(payload: unknown): Promise<ApiResult<T>> {
-  return requestWithRetry<ApiEnvelope<T>>("/api/briefing", {
+  const response = await requestWithRetry<ApiEnvelope<T>>("/api/briefing", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  recordBriefingSnapshot(response.data, response.meta);
+  return response;
 }
 
 export function getCachedMarketsData(): ApiResult<MarketsApiData> | null {
