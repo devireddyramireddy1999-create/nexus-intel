@@ -5,6 +5,8 @@ const COINGECKO_SIMPLE_PRICE_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true";
 const COINGECKO_MARKET_CHART_URL = "https://api.coingecko.com/api/v3/coins";
 const COINBASE_SPOT_URL = "https://api.coinbase.com/v2/prices";
+const COINGECKO_MARKET_CHART_RETRY_DELAY_MS = 800;
+const WARNING_THROTTLE_MS = 60_000;
 const DEBUG_MARKET = process.env.DEBUG_MARKET === "true";
 
 const coinMap = [
@@ -13,81 +15,132 @@ const coinMap = [
   { id: "solana", symbol: "SOL", name: "Solana" },
 ];
 
+const lastSuccessfulMarketCharts = new Map();
+const lastSuccessfulCoinGeckoStats = new Map();
+const warningTimestamps = new Map();
+
 export async function getCryptoData() {
   try {
     const marketCharts = await fetchCoinGeckoMarketCharts();
-    const livePrices = await fetchCoinGeckoPrices().catch((error) => {
+    const coinGeckoPrices = await fetchCoinGeckoPrices().catch((error) => {
       logCryptoDebug(
         "CoinGecko simple price failed; deriving crypto prices from market_chart:",
         getErrorMessage(error, "CoinGecko simple price failed."),
       );
       return buildCoinGeckoPricesFromMarketCharts(marketCharts);
     });
-    const crypto = await buildLiveCryptoData(livePrices, "coingecko", marketCharts);
-    logFinalCryptoResponse(crypto.assets, "coingecko");
+    const livePrices = await buildCryptoPriceMap(coinGeckoPrices, marketCharts);
+    const crypto = await buildLiveCryptoData(livePrices, marketCharts);
+    const providers = new Set(Object.values(livePrices).map((price) => price.provider));
+    const hasCoinbaseFallback = providers.has("coinbase");
+    const responseSource = providers.size === 1 && providers.has("coinbase") ? "coinbase" : "coingecko";
+    logFinalCryptoResponse(crypto.assets, responseSource);
 
     return {
       data: crypto,
       meta: {
+        ...(hasCoinbaseFallback ? { cacheable: false } : {}),
         fallback: false,
-        source: "coingecko",
+        source: responseSource,
       },
     };
-  } catch (coinGeckoError) {
-    console.warn("CoinGecko crypto provider failed:", getErrorMessage(coinGeckoError, "CoinGecko request failed."));
-    try {
-      const livePrices = await fetchCoinbasePrices();
-      const crypto = await buildLiveCryptoData(livePrices, "coinbase");
-      logFinalCryptoResponse(crypto.assets, "coinbase");
+  } catch (cryptoError) {
+    warnCryptoProviderFailure(
+      "crypto",
+      "Crypto provider failed:",
+      getErrorMessage(cryptoError, "Crypto request failed."),
+    );
+    const crypto = await getFallbackCryptoData();
 
-      return {
-        data: crypto,
-        meta: {
-          cacheable: false,
-          fallback: false,
-          source: "coinbase",
-          warning: getErrorMessage(coinGeckoError, "CoinGecko request failed."),
-        },
-      };
-    } catch (coinbaseError) {
-      console.warn("Coinbase crypto provider failed:", getErrorMessage(coinbaseError, "Coinbase request failed."));
-      const crypto = await getFallbackCryptoData();
-
-      return {
-        data: crypto,
-        meta: {
-          error: `${getErrorMessage(coinGeckoError, "CoinGecko request failed.")} ${getErrorMessage(coinbaseError, "Coinbase request failed.")}`,
-          fallback: true,
-          source: "mock",
-        },
-      };
-    }
+    return {
+      data: crypto,
+      meta: {
+        error: getErrorMessage(cryptoError, "Crypto request failed."),
+        fallback: true,
+        source: "mock",
+      },
+    };
   }
 }
 
 async function fetchCoinGeckoMarketCharts() {
   const results = await Promise.allSettled(
-    coinMap.map(async (coin) => [coin.id, await fetchCoinGeckoMarketChart(coin.id)]),
+    coinMap.map((coin) => fetchCoinGeckoMarketChartWithRetry(coin)),
   );
 
-  const marketCharts = Object.fromEntries(
-    results
-      .filter((result) => result.status === "fulfilled" && result.value[1].length >= 2)
-      .map((result) => result.value),
-  );
+  const marketCharts = {};
 
   for (const [index, result] of results.entries()) {
     const coin = coinMap[index];
-    const points = result.status === "fulfilled" ? result.value[1].length : 0;
-    const error = result.status === "rejected" ? ` error="${getErrorMessage(result.reason, "market_chart request failed")}"` : "";
-    logCryptoDebug(`[crypto-history] ${coin.symbol} CoinGecko market_chart points=${points}${error}`);
-  }
+    if (result.status === "fulfilled") {
+      marketCharts[coin.id] = result.value;
+      logCryptoDebug(
+        `[crypto-history] ${coin.symbol} CoinGecko market_chart points=${result.value.series.length} cached=${result.value.cached}`,
+      );
+      continue;
+    }
 
-  if (coinMap.some((coin) => !marketCharts[coin.id]?.length)) {
-    throw new Error("CoinGecko market_chart did not return complete BTC/ETH/SOL history.");
+    const message = getErrorMessage(result.reason, "market_chart request failed");
+    marketCharts[coin.id] = {
+      cached: false,
+      error: message,
+      series: [],
+    };
+    warnCryptoProviderFailure(
+      `coingecko-chart:${coin.symbol}`,
+      `CoinGecko ${coin.symbol} market_chart failed after retry with no cached chart:`,
+      message,
+    );
   }
 
   return marketCharts;
+}
+
+async function fetchCoinGeckoMarketChartWithRetry(coin) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const series = await fetchCoinGeckoMarketChart(coin.id);
+      if (series.length < 2) {
+        throw new Error(`CoinGecko market_chart returned ${series.length} points for ${coin.symbol}.`);
+      }
+
+      lastSuccessfulMarketCharts.set(coin.id, {
+        savedAt: Date.now(),
+        series,
+      });
+
+      return {
+        cached: false,
+        series,
+      };
+    } catch (error) {
+      lastError = error;
+      logCryptoDebug(
+        `[crypto-history] ${coin.symbol} CoinGecko market_chart attempt=${attempt} failed: ${getErrorMessage(error, "market_chart request failed")}`,
+      );
+
+      if (attempt === 1) {
+        await delay(COINGECKO_MARKET_CHART_RETRY_DELAY_MS);
+      }
+    }
+  }
+
+  const cached = lastSuccessfulMarketCharts.get(coin.id);
+  if (cached?.series?.length >= 2) {
+    logCryptoDebug(
+      `[crypto-history] ${coin.symbol} using cached CoinGecko market_chart points=${cached.series.length} cachedAt=${new Date(cached.savedAt).toISOString()}`,
+    );
+    return {
+      cached: true,
+      series: cached.series,
+    };
+  }
+
+  throw new Error(
+    `${coin.symbol} CoinGecko market_chart failed after retry: ${getErrorMessage(lastError, "market_chart request failed")}`,
+  );
 }
 
 async function fetchCoinGeckoMarketChart(coinId) {
@@ -148,53 +201,143 @@ async function fetchCoinGeckoPrices() {
   }
 }
 
-async function fetchCoinbasePrices() {
-  const entries = await Promise.all(
-    coinMap.map(async (coin) => {
-      const payload = await fetchCoinbaseSpotPrice(coin.symbol);
-      const price = Number(payload?.data?.amount);
+function buildCoinGeckoPricesFromMarketCharts(marketCharts) {
+  return Object.fromEntries(
+    coinMap.flatMap((coin) => {
+      const chart = marketCharts[coin.id];
+      const series = chart?.series ?? [];
+      const first = series[0]?.value;
+      const last = series.at(-1)?.value;
 
-      if (!Number.isFinite(price) || price <= 0) {
-        throw new Error(`Coinbase response missing ${coin.symbol} price.`);
+      if (!Number.isFinite(first) || !Number.isFinite(last) || first <= 0 || last <= 0) {
+        return [];
       }
 
-      return [
-        coin.id,
-        {
-          changeAvailable: false,
-          changeSource: "unavailable",
-          usd: price,
-          usd_last_updated_at: Math.round(Date.now() / 1000),
-        },
-      ];
+      const change = ((last - first) / first) * 100;
+      const priceData = {
+        changeAvailable: true,
+        changeSource: chart.cached ? "coingecko_cached_market_chart_24h" : "coingecko_market_chart_24h",
+        priceSource: chart.cached ? "coingecko_cached_market_chart" : "coingecko_market_chart",
+        provider: "coingecko",
+        usd: last,
+        usd_24h_change: change,
+        usd_last_updated_at: Math.round(Date.now() / 1000),
+      };
+      cacheCoinGeckoStats(coin.id, priceData);
+
+      return [[coin.id, priceData]];
+    }),
+  );
+}
+
+async function buildCryptoPriceMap(coinGeckoPrices, marketCharts) {
+  const entries = await Promise.all(
+    coinMap.map(async (coin) => {
+      const chart = marketCharts[coin.id];
+      const hasChart = chart?.series?.length >= 2;
+      const coinGeckoPrice = buildCoinGeckoPriceData(coinGeckoPrices?.[coin.id], chart);
+      if (coinGeckoPrice) {
+        cacheCoinGeckoStats(coin.id, coinGeckoPrice);
+      }
+
+      if (hasChart && coinGeckoPrice) {
+        return [coin.id, coinGeckoPrice];
+      }
+
+      const cachedStats = lastSuccessfulCoinGeckoStats.get(coin.id);
+      if (hasChart && cachedStats) {
+        return [
+          coin.id,
+          {
+            ...cachedStats,
+            changeSource: chart.cached ? "coingecko_cached_market_chart_24h" : cachedStats.changeSource,
+            provider: "coingecko",
+          },
+        ];
+      }
+
+      try {
+        return [coin.id, await fetchCoinbasePrice(coin)];
+      } catch (coinbaseError) {
+        warnCryptoProviderFailure(
+          `coinbase:${coin.symbol}`,
+          `Coinbase ${coin.symbol} spot fallback failed:`,
+          getErrorMessage(coinbaseError, "Coinbase request failed."),
+        );
+
+        if (coinGeckoPrice) {
+          return [coin.id, coinGeckoPrice];
+        }
+
+        throw coinbaseError;
+      }
     }),
   );
 
   return Object.fromEntries(entries);
 }
 
-function buildCoinGeckoPricesFromMarketCharts(marketCharts) {
-  return Object.fromEntries(
-    coinMap.map((coin) => {
-      const series = marketCharts[coin.id] ?? [];
-      const first = series[0]?.value;
-      const last = series.at(-1)?.value;
+function buildCoinGeckoPriceData(priceData, chart) {
+  const usd = Number(priceData?.usd);
+  const rawChange = Number(priceData?.usd_24h_change);
+  const chartChange = getChartChange(chart);
+  const existingChangeSource = priceData?.changeSource;
+  const hasLivePrice = Number.isFinite(usd) && usd > 0;
+  const hasLiveChange = Number.isFinite(rawChange);
+  const hasChartChange = Number.isFinite(chartChange);
 
-      if (!Number.isFinite(first) || !Number.isFinite(last) || first <= 0 || last <= 0) {
-        throw new Error(`CoinGecko market_chart missing usable ${coin.symbol} price history.`);
-      }
+  if (hasLivePrice) {
+    return {
+      changeAvailable: hasLiveChange || hasChartChange,
+      changeSource: hasLiveChange
+        ? existingChangeSource ?? "coingecko_24h"
+        : hasChartChange
+          ? chart.cached
+            ? "coingecko_cached_market_chart_24h"
+            : "coingecko_market_chart_24h"
+          : "unavailable",
+      priceSource: priceData?.priceSource ?? "coingecko_simple_price",
+      provider: "coingecko",
+      usd,
+      ...(hasLiveChange || hasChartChange ? { usd_24h_change: hasLiveChange ? rawChange : chartChange } : {}),
+      usd_last_updated_at: Number(priceData?.usd_last_updated_at) || Math.round(Date.now() / 1000),
+    };
+  }
 
-      return [
-        coin.id,
-        {
-          changeSource: "coingecko_market_chart_24h",
-          usd: last,
-          usd_24h_change: ((last - first) / first) * 100,
-          usd_last_updated_at: Math.round(Date.now() / 1000),
-        },
-      ];
-    }),
-  );
+  const series = chart?.series ?? [];
+  const first = series[0]?.value;
+  const last = series.at(-1)?.value;
+  if (!Number.isFinite(first) || !Number.isFinite(last) || first <= 0 || last <= 0) {
+    return undefined;
+  }
+
+  return {
+    changeAvailable: true,
+    changeSource: chart.cached ? "coingecko_cached_market_chart_24h" : "coingecko_market_chart_24h",
+    priceSource: chart.cached ? "coingecko_cached_market_chart" : "coingecko_market_chart",
+    provider: "coingecko",
+    usd: last,
+    usd_24h_change: ((last - first) / first) * 100,
+    usd_last_updated_at: Math.round(Date.now() / 1000),
+  };
+}
+
+async function fetchCoinbasePrice(coin) {
+  const payload = await fetchCoinbaseSpotPrice(coin.symbol);
+  const price = Number(payload?.data?.amount);
+
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`Coinbase response missing ${coin.symbol} price.`);
+  }
+
+  return {
+    changeAvailable: false,
+    changeSource: "unavailable",
+    priceSource: "coinbase_spot",
+    provider: "coinbase",
+    usd: price,
+    usd_last_updated_at: Math.round(Date.now() / 1000),
+  };
 }
 
 async function fetchCoinbaseSpotPrice(symbol) {
@@ -220,16 +363,18 @@ async function fetchCoinbaseSpotPrice(symbol) {
   }
 }
 
-async function buildLiveCryptoData(livePrices, provider, marketCharts = {}) {
+async function buildLiveCryptoData(livePrices, marketCharts = {}) {
   const fallback = await getCrypto();
   const liveAssets = fallback.assets.map((asset) => {
     const coin = coinMap.find((item) => item.symbol === asset.symbol);
     const priceData = coin ? livePrices[coin.id] : undefined;
-    const series = coin ? marketCharts[coin.id] ?? [] : [];
+    const provider = priceData?.provider ?? "coingecko";
+    const chart = coin ? marketCharts[coin.id] : undefined;
+    const series = chart?.series ?? [];
     const hasSeries = series.length >= 2;
 
     if (!priceData?.usd) {
-      throw new Error(`${getProviderLabel(provider)} response missing ${asset.symbol} price.`);
+      throw new Error(`Crypto response missing ${asset.symbol} price.`);
     }
 
     const rawChange = Number(priceData.usd_24h_change);
@@ -246,9 +391,9 @@ async function buildLiveCryptoData(livePrices, provider, marketCharts = {}) {
       lastUpdatedAt: priceData.usd_last_updated_at
         ? new Date(priceData.usd_last_updated_at * 1000).toISOString()
         : new Date().toISOString(),
-      note: getProviderNote(provider, trend, changeAvailable, hasSeries),
+      note: getProviderNote(provider, trend, changeAvailable, hasSeries, chart?.cached, priceData.priceSource),
       series: hasSeries ? series : [],
-      seriesSource: hasSeries ? `CoinGecko market_chart:${coin.id}` : "latest-quote-only",
+      seriesSource: hasSeries ? getCryptoSeriesSource(coin, chart) : "latest-quote-only",
       source: getProviderLabel(provider),
       trend,
       value: formatUsd(priceData.usd),
@@ -258,7 +403,7 @@ async function buildLiveCryptoData(livePrices, provider, marketCharts = {}) {
   return {
     assets: liveAssets,
     quotes: liveAssets.map(toQuote),
-    radar: buildLiveRadar(liveAssets, provider),
+    radar: buildLiveRadar(liveAssets),
   };
 }
 
@@ -278,12 +423,12 @@ async function getFallbackCryptoData() {
   };
 }
 
-function buildLiveRadar(assets, provider) {
+function buildLiveRadar(assets) {
   const fallbackBySymbol = new Map(cryptoRadar.map((item) => [item.asset, item]));
-  const providerLabel = getProviderLabel(provider);
 
   return assets.map((asset) => {
     const fallback = fallbackBySymbol.get(asset.symbol);
+    const providerLabel = asset.source ?? "CoinGecko";
     const direction = asset.trend === "up" ? "positive" : asset.trend === "down" ? "negative" : "flat";
 
     return {
@@ -302,18 +447,73 @@ function getProviderLabel(provider) {
   return provider === "coinbase" ? "Coinbase" : "CoinGecko";
 }
 
-function getProviderNote(provider, trend, changeAvailable, hasSeries) {
-  if (provider === "coinbase" || !changeAvailable) {
-    return "Live Coinbase spot price. 24h change unavailable. Chart unavailable — latest quote only.";
+function getProviderNote(provider, trend, changeAvailable, hasSeries, chartCached = false, priceSource = "") {
+  if (provider === "coinbase") {
+    return "Live Coinbase spot quote. Chart unavailable.";
+  }
+
+  if (!changeAvailable) {
+    return hasSeries
+      ? "Live CoinGecko market history."
+      : "Live CoinGecko quote. Chart unavailable.";
+  }
+
+  if (chartCached && priceSource === "coingecko_cached_market_chart") {
+    return "Recent CoinGecko market history. Last live sync retained.";
+  }
+
+  if (chartCached) {
+    return "Recent CoinGecko market history. Last live sync retained.";
   }
 
   return hasSeries
-    ? "Live CoinGecko price. Chart uses CoinGecko market_chart history."
+    ? "Live CoinGecko market history."
     : `Live CoinGecko price. 24h trend is ${trend}. Chart unavailable — latest quote only.`;
+}
+
+function getCryptoSeriesSource(coin, chart) {
+  return chart?.cached ? `CoinGecko cached market_chart:${coin.id}` : `CoinGecko market_chart:${coin.id}`;
 }
 
 function getProviderChangeSource(provider) {
   return provider === "coinbase" ? "unavailable" : "coingecko_24h";
+}
+
+function cacheCoinGeckoStats(coinId, priceData) {
+  const usd = Number(priceData.usd);
+  const rawChange = Number(priceData.usd_24h_change);
+  const changeAvailable = typeof priceData.changeAvailable === "boolean"
+    ? priceData.changeAvailable && Number.isFinite(rawChange)
+    : Number.isFinite(rawChange);
+
+  if (!Number.isFinite(usd) || usd <= 0) return;
+
+  const previous = lastSuccessfulCoinGeckoStats.get(coinId);
+  lastSuccessfulCoinGeckoStats.set(coinId, {
+    changeAvailable: changeAvailable || previous?.changeAvailable === true,
+    changeSource: changeAvailable ? priceData.changeSource ?? "coingecko_24h" : previous?.changeSource ?? "unavailable",
+    priceSource: priceData.priceSource ?? "coingecko_simple_price",
+    provider: "coingecko",
+    usd,
+    ...(changeAvailable
+      ? { usd_24h_change: rawChange }
+      : Number.isFinite(previous?.usd_24h_change)
+        ? { usd_24h_change: previous.usd_24h_change }
+        : {}),
+    usd_last_updated_at: priceData.usd_last_updated_at ?? previous?.usd_last_updated_at ?? Math.round(Date.now() / 1000),
+  });
+}
+
+function getChartChange(chart) {
+  const series = chart?.series ?? [];
+  const first = series[0]?.value;
+  const last = series.at(-1)?.value;
+
+  if (!Number.isFinite(first) || !Number.isFinite(last) || first <= 0 || last <= 0) {
+    return undefined;
+  }
+
+  return ((last - first) / first) * 100;
 }
 
 function logFinalCryptoResponse(assets, provider) {
@@ -329,6 +529,15 @@ function logFinalCryptoResponse(assets, provider) {
 function logCryptoDebug(...messages) {
   if (!DEBUG_MARKET) return;
   console.info(...messages);
+}
+
+function warnCryptoProviderFailure(key, prefix, message) {
+  const now = Date.now();
+  const lastWarningAt = warningTimestamps.get(key) ?? 0;
+  if (now - lastWarningAt < WARNING_THROTTLE_MS) return;
+
+  warningTimestamps.set(key, now);
+  console.warn(prefix, message);
 }
 
 function getErrorMessage(error, fallbackMessage) {
@@ -375,5 +584,11 @@ function formatChartTime(timestamp) {
     hour12: false,
     minute: "2-digit",
     timeZone: "UTC",
+  });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
 }
