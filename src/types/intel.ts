@@ -129,6 +129,23 @@ export type PersonalRead = {
   thingToAvoid: string;
 };
 
+export type SmartAlertType = "Market Alert" | "Crypto Alert" | "Geopolitical Alert" | "Personal Focus Alert" | "Risk Alert";
+
+export type SmartAlertSeverity = "Low" | "Medium" | "High" | "Critical";
+
+export type SmartAlert = {
+  action: string;
+  createdAt: string;
+  fingerprint: string;
+  id: string;
+  meaning: string;
+  severity: SmartAlertSeverity;
+  title: string;
+  trigger: string;
+  type: SmartAlertType;
+  why: string;
+};
+
 export type GeneratedBriefing = {
   dataQuality?: string;
   mode: BriefingMode;

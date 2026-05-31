@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { PersonalReadCard } from "@/components/dashboard/PersonalReadCard";
 import { RiskMeter } from "@/components/dashboard/RiskMeter";
 import { SignalPanel } from "@/components/dashboard/SignalPanel";
+import { SmartAlertsCard } from "@/components/dashboard/SmartAlertsCard";
 import { TopStories } from "@/components/dashboard/TopStories";
 import { formatLocalTime } from "@/lib/utils";
 import { briefingService } from "@/services/briefingService";
@@ -119,6 +120,7 @@ export function DashboardPage() {
         <DailyBriefHero briefing={briefing} />
         <NexusJudgmentCard changeInsights={changeInsights} />
         <PersonalReadCard changeInsights={changeInsights} />
+        <SmartAlertsCard changeInsights={changeInsights} />
         <MarketSnapshot />
 
         <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[0.9fr_1.1fr]">
