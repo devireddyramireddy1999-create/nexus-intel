@@ -1,10 +1,21 @@
-import { Bell, Database, LockKeyhole, Moon, Settings, SlidersHorizontal, Wifi } from "lucide-react";
+import { useState } from "react";
+import { Bell, Database, LockKeyhole, Moon, RotateCcw, Save, Settings, SlidersHorizontal, UserRound, Wifi } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { clearAccessToken } from "@/services/accessService";
+import {
+  clearPersonalContext,
+  emptyPersonalContext,
+  getPersonalContext,
+  hasPersonalContext,
+  savePersonalContext,
+} from "@/services/personalContextService";
+import type { PersonalContext } from "@/types/intel";
 
 const settings = [
   { label: "Dark command mode", value: "Enabled", icon: Moon },
@@ -14,8 +25,31 @@ const settings = [
 ];
 
 export function SettingsPage() {
+  const [personalContext, setPersonalContext] = useState<PersonalContext>(() => getPersonalContext());
+  const [saved, setSaved] = useState(false);
+  const contextActive = hasPersonalContext(personalContext);
+
   const lockApp = () => {
     clearAccessToken();
+  };
+
+  const updatePersonalContext = (field: keyof PersonalContext, value: string) => {
+    setSaved(false);
+    setPersonalContext((context) => ({
+      ...context,
+      [field]: value,
+    }));
+  };
+
+  const handleSavePersonalContext = () => {
+    savePersonalContext(personalContext);
+    setSaved(true);
+  };
+
+  const handleClearPersonalContext = () => {
+    clearPersonalContext();
+    setPersonalContext(emptyPersonalContext);
+    setSaved(false);
   };
 
   return (
@@ -89,6 +123,135 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+      <Card className="mt-5">
+        <CardHeader>
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="mb-2 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.22em] text-nexus-champagne sm:tracking-[0.26em]">
+                <UserRound className="size-4" />
+                Personal Context V1
+              </div>
+              <CardTitle>Ram Context Layer</CardTitle>
+            </div>
+            <Badge variant={contextActive ? "success" : "secondary"}>{contextActive ? "Active" : "Not set"}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ContextField
+              label="Main life goal"
+              value={personalContext.mainLifeGoal}
+              onChange={(value) => updatePersonalContext("mainLifeGoal", value)}
+              placeholder="Build NEXUS into a premium decision intelligence app."
+            />
+            <ContextField
+              label="Current primary project"
+              value={personalContext.currentPrimaryProject}
+              onChange={(value) => updatePersonalContext("currentPrimaryProject", value)}
+              placeholder="Improve NEXUS intelligence quality."
+            />
+            <ContextField
+              label="Current work/school priority"
+              value={personalContext.workSchoolPriority}
+              onChange={(value) => updatePersonalContext("workSchoolPriority", value)}
+              placeholder="Stay focused and avoid wasting time."
+            />
+            <ContextField
+              label="Fitness/health priority"
+              value={personalContext.fitnessHealthPriority}
+              onChange={(value) => updatePersonalContext("fitnessHealthPriority", value)}
+              placeholder="Stay consistent with gym and food."
+            />
+            <ContextField
+              label="Financial priority"
+              value={personalContext.financialPriority}
+              onChange={(value) => updatePersonalContext("financialPriority", value)}
+              placeholder="Avoid emotional decisions."
+            />
+            <ContextField
+              label="Current schedule note"
+              value={personalContext.currentScheduleNote}
+              onChange={(value) => updatePersonalContext("currentScheduleNote", value)}
+              placeholder="Limited time because of work and school."
+            />
+            <ContextArea
+              label="Things to avoid"
+              value={personalContext.thingsToAvoid}
+              onChange={(value) => updatePersonalContext("thingsToAvoid", value)}
+              placeholder="Overchecking markets, random feature changes, distraction."
+            />
+            <ContextArea
+              label="Personal watchlist"
+              value={personalContext.personalWatchlist}
+              onChange={(value) => updatePersonalContext("personalWatchlist", value)}
+              placeholder="BTC, QQQ, oil, gold, AI news, geopolitical risk."
+            />
+          </div>
+
+          <Separator className="my-5" />
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {saved ? "Personal context saved for future dashboard reads and generated briefs." : "Saved on this device and used only when generating a brief."}
+            </p>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <Button type="button" onClick={handleSavePersonalContext}>
+                <Save />
+                Save Context
+              </Button>
+              <Button type="button" variant="outline" onClick={handleClearPersonalContext}>
+                <RotateCcw />
+                Clear Context
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </>
+  );
+}
+
+function ContextField({
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <label className="min-w-0">
+      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+    </label>
+  );
+}
+
+function ContextArea({
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <label className="min-w-0">
+      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className={cn(
+          "min-h-24 w-full resize-y rounded-md border border-primary/[0.16] bg-[#050505]/70 px-3 py-2 text-base leading-6 text-foreground shadow-inner transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm",
+        )}
+      />
+    </label>
   );
 }

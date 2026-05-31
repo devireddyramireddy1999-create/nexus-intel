@@ -7,7 +7,7 @@ import { getNews } from "./newsProvider.js";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const OPENAI_TIMEOUT_MS = 25_000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-const NO_PERSONAL_DATA_MESSAGE = "No personal calendar/task data connected yet. Focus on review, planning, and execution discipline.";
+const PERSONAL_CONTEXT_EMPTY_MESSAGE = "Personal context is not set yet. Add your goals to unlock personalized reads.";
 const LOW_DATA_QUALITY_MESSAGE = "Signal quality is limited; treat this brief as directional.";
 const NO_MAJOR_WORLD_SHIFT_MESSAGE = "No major global regime shift detected; current risk is mostly market and headline-driven.";
 
@@ -44,15 +44,17 @@ const sectionTitles = {
   cryptoWatch: "Crypto Watch",
   aiTechSignals: "AI & Tech Signals",
   personalPriorityRecommendation: "Personal Priority Recommendation",
+  personalCommand: "Personal Command",
   actionListForTheDay: "Action List For The Day",
 };
 
-export async function generateBriefing({ command = "Good morning", localGreeting, mode = "standard" }) {
+export async function generateBriefing({ command = "Good morning", localGreeting, mode = "standard", personalContext }) {
   const normalized = command.trim().replace(/\s+/g, " ").toLowerCase();
 
   const context = await gatherBriefingContext({
     command,
     normalizedCommand: normalized,
+    personalContext,
     requiredGreeting: getGreetingForCommand(normalized, localGreeting),
   });
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -91,7 +93,7 @@ export async function generateBriefing({ command = "Good morning", localGreeting
   }
 }
 
-async function gatherBriefingContext({ command, normalizedCommand, requiredGreeting }) {
+async function gatherBriefingContext({ command, normalizedCommand, personalContext, requiredGreeting }) {
   const [cryptoEnvelope, marketsEnvelope, newsEnvelope] = await Promise.all([getCryptoData(), getMarkets(), getNews()]);
   const crypto = unwrapEnvelope(cryptoEnvelope);
   const markets = unwrapEnvelope(marketsEnvelope);
@@ -110,6 +112,7 @@ async function gatherBriefingContext({ command, normalizedCommand, requiredGreet
       ...news,
       newsItems: rankStories(news.newsItems ?? []),
     },
+    personalContext: normalizePersonalContext(personalContext),
     personalPriorities: [],
     userPreferences: {},
     generatedAt: new Date().toISOString(),
@@ -181,6 +184,11 @@ function buildPromptPayload(context, mode) {
   const tacticalWatchItems = buildTacticalActionList(context, newsItems);
   const nexusJudgment = buildBriefingJudgment(context, newsItems);
   const nexusReadItems = formatNexusReadItems(nexusJudgment);
+  const personalCommandItems = buildPersonalCommandItems(context, nexusJudgment);
+  const personalContextConnected = hasPersonalContext(context.personalContext);
+  const personalPriorityRequirement = personalPriorities.length > 0
+    ? "Use supplied personal priority data only."
+    : buildPersonalPriorityRecommendation(context, PERSONAL_CONTEXT_EMPTY_MESSAGE);
 
   return {
     instruction: "Create a NEXUS Daily Briefing in structured JSON. Prioritize high-impact stories. Exclude appointment/personnel/company fluff, startup deadlines, product launches, generic PR, random funding items, and isolated human-interest stories from world/geopolitical context unless they are clearly market-moving or globally relevant.",
@@ -209,10 +217,15 @@ function buildPromptPayload(context, mode) {
       cryptoWatchMustInclude: requiredCryptoWatch,
       marketSnapshotMustInclude: requiredMarketSnapshot,
       nexusReadMustInclude: nexusReadItems,
-      personalPriorityRecommendation: personalPriorities.length > 0 ? "Use supplied personal priority data only." : NO_PERSONAL_DATA_MESSAGE,
+      personalCommandMustInclude: personalCommandItems,
+      personalPriorityRecommendation: personalPriorityRequirement,
       tacticalWatchItems,
     },
     nexusJudgment,
+    personalContext: {
+      connected: hasPersonalContext(context.personalContext),
+      ...context.personalContext,
+    },
     markets: marketAssets.map((asset) => ({
       symbol: asset.symbol,
       name: asset.name,
@@ -258,9 +271,10 @@ function buildPromptPayload(context, mode) {
       category: item.category,
     })),
     personalDataPolicy: {
-      connected: personalPriorities.length > 0,
-      defaultRecommendation: NO_PERSONAL_DATA_MESSAGE,
-      rule: "Do not invent personal tasks, calendar events, deadlines, meetings, memos, or reminders. If no personal priority data is supplied, use the default recommendation exactly.",
+      connected: personalPriorities.length > 0 || personalContextConnected,
+      personalContextConnected,
+      defaultRecommendation: personalPriorityRequirement,
+      rule: "Do not invent personal tasks, calendar events, deadlines, meetings, memos, or reminders. Use only supplied personal context. If no personal priority or context data is supplied, use the default recommendation exactly.",
     },
     personalPriorities: personalPriorities.map((priority) => ({
       title: priority.title,
@@ -282,7 +296,9 @@ function buildPromptPayload(context, mode) {
       `World Situation must include only major world-relevant topics. Exclude startup deadlines, small product launches, generic company PR, random funding announcements, and isolated human-interest stories. If there is no strong world signal, write exactly: "${NO_MAJOR_WORLD_SHIFT_MESSAGE}"`,
       "The executive summary should explain what matters most, whether markets are confirming or ignoring headline risk, and what to watch next.",
       `NEXUS Read must be a compact decision block using this deterministic judgment: ${nexusReadItems.join(" ")}`,
-      "Personal Priority Recommendation must use the exact default text if personalDataPolicy.connected is false.",
+      `Personal Command must be short and practical, using this deterministic personal command: ${personalCommandItems.join(" ")}`,
+      "Use personal context carefully. Do not make extreme recommendations, do not imply certainty, and do not give direct financial advice.",
+      "Personal Priority Recommendation must use saved personal context when personalDataPolicy.personalContextConnected is true; otherwise use the exact default text if personalDataPolicy.connected is false.",
       "Keep each section clear enough to render as a dashboard bullet.",
       "Action list must contain 3 to 5 tactical watch items for today, not generic productivity advice.",
       "If any crypto 24h change is unavailable, do not say to use 24h changes as a risk-temperature or momentum check.",
@@ -310,6 +326,10 @@ const briefingJsonSchema = {
       items: { type: "string" },
       type: "array",
     },
+    personalCommand: {
+      items: { type: "string" },
+      type: "array",
+    },
     personalPriorityRecommendation: { type: "string" },
     worldSituation: { type: "string" },
   },
@@ -318,6 +338,7 @@ const briefingJsonSchema = {
     "greeting",
     "executiveSummary",
     "nexusRead",
+    "personalCommand",
     "worldSituation",
     "geopoliticalRisk",
     "marketSnapshot",
@@ -356,6 +377,10 @@ function validateAiBriefing(value, context) {
     throw new Error("OpenAI briefing response missing NEXUS Read.");
   }
 
+  if (!Array.isArray(value.personalCommand) || !value.personalCommand.every((item) => typeof item === "string" && item.trim())) {
+    throw new Error("OpenAI briefing response missing Personal Command.");
+  }
+
   const feedQuality = getFeedQuality(context);
   const executiveSummary = sanitizeUserFacingText(ensureDataQualityLine(value.executiveSummary, feedQuality));
   const cryptoWatch = stripSirHonorific(mergeRequiredReadout(buildCryptoWatchText(context), value.cryptoWatch));
@@ -363,9 +388,11 @@ function validateAiBriefing(value, context) {
   const marketSnapshot = stripSirHonorific(mergeRequiredReadout(buildMarketProxySnapshotText(context), value.marketSnapshot));
   const personalPriorityRecommendation = context.personalPriorities?.length
     ? sanitizeUserFacingText(value.personalPriorityRecommendation)
-    : NO_PERSONAL_DATA_MESSAGE;
+    : buildPersonalPriorityRecommendation(context, PERSONAL_CONTEXT_EMPTY_MESSAGE);
   const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5).map(sanitizeUserFacingText);
-  const nexusRead = formatNexusReadItems(buildBriefingJudgment(context)).map(sanitizeUserFacingText);
+  const nexusJudgment = buildBriefingJudgment(context);
+  const nexusRead = formatNexusReadItems(nexusJudgment).map(sanitizeUserFacingText);
+  const personalCommand = buildPersonalCommandItems(context, nexusJudgment).map(sanitizeUserFacingText);
 
   return {
     ...value,
@@ -378,6 +405,7 @@ function validateAiBriefing(value, context) {
     aiTechSignals: sanitizeUserFacingText(value.aiTechSignals),
     marketSnapshot: sanitizeUserFacingText(marketSnapshot),
     nexusRead,
+    personalCommand,
     personalPriorityRecommendation,
     worldSituation: buildWorldSituationText(context, value.worldSituation),
   };
@@ -395,6 +423,7 @@ function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toIS
     { title: sectionTitles.cryptoWatch, items: [sanitizeUserFacingText(briefing.cryptoWatch)] },
     { title: sectionTitles.aiTechSignals, items: [sanitizeUserFacingText(briefing.aiTechSignals)] },
     { title: sectionTitles.personalPriorityRecommendation, items: [sanitizeUserFacingText(briefing.personalPriorityRecommendation)] },
+    { title: sectionTitles.personalCommand, items: briefing.personalCommand.map(sanitizeUserFacingText) },
     { title: sectionTitles.actionListForTheDay, items: briefing.actionListForTheDay.map(sanitizeUserFacingText) },
   ];
 
@@ -422,7 +451,9 @@ function buildFallbackBriefing({ context, mode, reason }) {
   const marketStory = newsItems.find((item) => item.category === "markets") ?? topStory;
   const aiStory = newsItems.find((item) => item.category === "ai-tech") ?? topStory;
   const priority = context.personalPriorities[0];
-  const nexusRead = formatNexusReadItems(buildBriefingJudgment(context, newsItems));
+  const nexusJudgment = buildBriefingJudgment(context, newsItems);
+  const nexusRead = formatNexusReadItems(nexusJudgment);
+  const personalCommand = buildPersonalCommandItems(context, nexusJudgment);
   const fallback = {
     actionListForTheDay: buildTacticalActionList(context, newsItems),
     aiTechSignals: aiStory
@@ -440,7 +471,10 @@ function buildFallbackBriefing({ context, mode, reason }) {
         ? `${buildMarketProxySnapshotText(context)} ${strongest.name} is the positive signal at ${formatSigned(strongest.change)}. ${weakest.name} is the pressure point at ${formatSigned(weakest.change)}. ${marketStory ? `${marketStory.title} (${marketStory.source}) is the highest-ranked market story. ` : ""}Proxy data remains the live market lens.`
         : "Market data is available, but no complete strongest or weakest signal was identified.",
     nexusRead,
-    personalPriorityRecommendation: priority ? `${priority.title}: ${priority.nextAction}` : NO_PERSONAL_DATA_MESSAGE,
+    personalCommand,
+    personalPriorityRecommendation: priority
+      ? `${priority.title}: ${priority.nextAction}`
+      : buildPersonalPriorityRecommendation(context, PERSONAL_CONTEXT_EMPTY_MESSAGE),
     worldSituation: worldStory
       ? formatWorldSituationStory(worldStory)
       : NO_MAJOR_WORLD_SHIFT_MESSAGE,
@@ -461,6 +495,88 @@ function buildBriefingJudgment(context, newsItems = context.news.newsItems ?? []
     riskSignals: context.news.riskSignals ?? [],
     stories: context.news.stories ?? [],
   });
+}
+
+function normalizePersonalContext(value) {
+  const source = value && typeof value === "object" ? value : {};
+
+  return {
+    currentPrimaryProject: cleanPersonalField(source.currentPrimaryProject),
+    currentScheduleNote: cleanPersonalField(source.currentScheduleNote),
+    financialPriority: cleanPersonalField(source.financialPriority),
+    fitnessHealthPriority: cleanPersonalField(source.fitnessHealthPriority),
+    mainLifeGoal: cleanPersonalField(source.mainLifeGoal),
+    personalWatchlist: cleanPersonalField(source.personalWatchlist),
+    thingsToAvoid: cleanPersonalField(source.thingsToAvoid),
+    workSchoolPriority: cleanPersonalField(source.workSchoolPriority),
+  };
+}
+
+function hasPersonalContext(personalContext) {
+  return Object.values(personalContext ?? {}).some((value) => typeof value === "string" && value.trim());
+}
+
+function buildPersonalCommandItems(context, judgment) {
+  const personalContext = context.personalContext ?? normalizePersonalContext();
+
+  if (!hasPersonalContext(personalContext)) {
+    return [PERSONAL_CONTEXT_EMPTY_MESSAGE];
+  }
+
+  const focus = personalContext.currentPrimaryProject ||
+    personalContext.workSchoolPriority ||
+    personalContext.mainLifeGoal ||
+    "your main priority";
+  const ignore = personalContext.thingsToAvoid || judgment.whatToIgnore;
+
+  return [
+    `Focus: ${focus}`,
+    `Ignore: ${ignore}`,
+    `Action: ${buildPersonalAction(personalContext, judgment)}`,
+    `Next step: ${buildPersonalNextStep(personalContext)}`,
+  ];
+}
+
+function buildPersonalPriorityRecommendation(context, fallbackRecommendation) {
+  const personalContext = context.personalContext ?? normalizePersonalContext();
+
+  if (!hasPersonalContext(personalContext)) return fallbackRecommendation;
+
+  const priority = personalContext.workSchoolPriority ||
+    personalContext.currentPrimaryProject ||
+    personalContext.mainLifeGoal ||
+    "your highest-value priority";
+
+  return `Use your saved context: ${priority}. Keep the day practical and avoid distractions that do not move the main project forward.`;
+}
+
+function buildPersonalAction(personalContext, judgment) {
+  if (judgment.riskPosture === "Crisis" || judgment.riskPosture === "Defensive") {
+    return `${judgment.bestAction} Keep ${personalContext.financialPriority || "financial decisions"} disciplined.`;
+  }
+
+  if (judgment.marketMood === "Mixed" || judgment.marketMood === "Unclear") {
+    return `No urgent market action. Use today for ${personalContext.currentPrimaryProject || personalContext.workSchoolPriority || "focused execution"}.`;
+  }
+
+  return `${judgment.bestAction} Prioritize ${personalContext.currentPrimaryProject || personalContext.workSchoolPriority || "the main goal"}.`;
+}
+
+function buildPersonalNextStep(personalContext) {
+  const project = personalContext.currentPrimaryProject ||
+    personalContext.workSchoolPriority ||
+    personalContext.mainLifeGoal ||
+    "your main priority";
+
+  if (personalContext.currentScheduleNote) {
+    return `Protect one 45-minute block for ${project}.`;
+  }
+
+  return `Pick one measurable improvement for ${project}.`;
+}
+
+function cleanPersonalField(value) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
 function isBriefingIntent(normalizedCommand) {

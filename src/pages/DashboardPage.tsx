@@ -6,12 +6,14 @@ import { DailyBriefHero } from "@/components/dashboard/DailyBriefHero";
 import { MarketSnapshot } from "@/components/dashboard/MarketSnapshot";
 import { NexusJudgmentCard } from "@/components/dashboard/NexusJudgmentCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { PersonalReadCard } from "@/components/dashboard/PersonalReadCard";
 import { RiskMeter } from "@/components/dashboard/RiskMeter";
 import { SignalPanel } from "@/components/dashboard/SignalPanel";
 import { TopStories } from "@/components/dashboard/TopStories";
 import { formatLocalTime } from "@/lib/utils";
 import { briefingService } from "@/services/briefingService";
 import { CHANGE_INTELLIGENCE_EVENT, getChangeInsights } from "@/services/changeIntelligenceService";
+import { getPersonalContext } from "@/services/personalContextService";
 import type { BriefingMode, ChangeInsight, GeneratedBriefing } from "@/types/intel";
 
 const savedBriefingKey = "nexus-intel-last-briefing";
@@ -40,7 +42,12 @@ export function DashboardPage() {
     setCopied(false);
 
     try {
-      const nextBriefing = await briefingService.generateDailyBriefing({ mode, command, localGreeting: options.localGreeting });
+      const nextBriefing = await briefingService.generateDailyBriefing({
+        mode,
+        command,
+        localGreeting: options.localGreeting,
+        personalContext: getPersonalContext(),
+      });
       setBriefing(nextBriefing);
       setIsSavedBriefing(false);
       saveBriefing(nextBriefing);
@@ -111,6 +118,7 @@ export function DashboardPage() {
       <div className="grid gap-5">
         <DailyBriefHero briefing={briefing} />
         <NexusJudgmentCard changeInsights={changeInsights} />
+        <PersonalReadCard changeInsights={changeInsights} />
         <MarketSnapshot />
 
         <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[0.9fr_1.1fr]">

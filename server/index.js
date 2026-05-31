@@ -113,9 +113,11 @@ app.post("/api/briefing", async (request, response, next) => {
     const mode = request.body?.mode ?? "standard";
     const command = request.body?.command ?? "Good morning";
     const localGreeting = request.body?.localGreeting;
+    const personalContext = request.body?.personalContext;
+    const personalContextCacheKey = Buffer.from(JSON.stringify(personalContext ?? {})).toString("base64url").slice(0, 96);
     response.json(
-      await withCache(`briefing:${mode}:${command.trim().toLowerCase()}:${String(localGreeting ?? "").trim()}`, 30_000, () =>
-        generateBriefing({ command, localGreeting, mode }),
+      await withCache(`briefing:${mode}:${command.trim().toLowerCase()}:${String(localGreeting ?? "").trim()}:${personalContextCacheKey}`, 30_000, () =>
+        generateBriefing({ command, localGreeting, mode, personalContext }),
       ),
     );
   } catch (error) {

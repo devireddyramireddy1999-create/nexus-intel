@@ -110,6 +110,25 @@ export type NexusJudgment = {
   whatToIgnore: string;
 };
 
+export type PersonalContext = {
+  currentPrimaryProject: string;
+  currentScheduleNote: string;
+  financialPriority: string;
+  fitnessHealthPriority: string;
+  mainLifeGoal: string;
+  personalWatchlist: string;
+  thingsToAvoid: string;
+  workSchoolPriority: string;
+};
+
+export type PersonalRead = {
+  bestAction: string;
+  focusBlock: string;
+  impact: string;
+  priority: string;
+  thingToAvoid: string;
+};
+
 export type GeneratedBriefing = {
   dataQuality?: string;
   mode: BriefingMode;

@@ -4,7 +4,7 @@ import { generateDailyBriefing as generateAIDailyBriefing, type AIDailyBriefing 
 import { marketService as defaultMarketService, type MarketService } from "@/services/marketService";
 import { memoryService as defaultMemoryService, type MemoryService, type PersonalPriorityMemory } from "@/services/memoryService";
 import { newsService as defaultNewsService, type NewsItem, type NewsRiskLevel, type NewsService } from "@/services/newsService";
-import type { BriefingMode, GeneratedBriefing } from "@/types/intel";
+import type { BriefingMode, GeneratedBriefing, PersonalContext } from "@/types/intel";
 
 export type BriefingGlobalRisk = {
   score: number;
@@ -30,6 +30,7 @@ export type BriefingRequest = {
   mode: BriefingMode;
   command?: string;
   localGreeting?: string;
+  personalContext?: PersonalContext;
 };
 
 export interface BriefingService {
