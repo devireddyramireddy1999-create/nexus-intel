@@ -1,5 +1,6 @@
 import { marketAssets } from "@/data/mockData";
 import { getMarketsData } from "@/services/backendApi";
+import { getMarketAssetPrice } from "@/services/marketFormatting";
 
 export type MarketAssetCategory = "Index" | "Crypto" | "Commodity" | "FX";
 
@@ -92,7 +93,8 @@ function filterAssets(assets: MarketAssetQuote[], query?: MarketQuery) {
 }
 
 function parsePrice(value: string) {
-  return Number(value.replace(/[$,]/g, ""));
+  const parsed = getMarketAssetPrice({ value });
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function getTrend(changePercent: number): MarketTrend {

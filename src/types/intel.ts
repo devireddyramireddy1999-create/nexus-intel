@@ -19,6 +19,7 @@ export type MarketAsset = {
   symbol: string;
   name: string;
   value: string;
+  price?: number;
   change: number;
   changeAvailable?: boolean;
   changeSource?: string;

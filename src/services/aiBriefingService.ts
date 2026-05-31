@@ -235,9 +235,12 @@ function buildActionList(userPreferences: AIBriefingUserPreferences, riskLevel: 
 }
 
 function formatUsd(value: number) {
+  const useNoDecimals = value >= 1000;
+
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
-    maximumFractionDigits: value >= 1000 ? 0 : 2,
+    maximumFractionDigits: useNoDecimals ? 0 : 2,
+    minimumFractionDigits: useNoDecimals ? 0 : 2,
     style: "currency",
   }).format(value);
 }

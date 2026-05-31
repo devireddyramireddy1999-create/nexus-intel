@@ -24,6 +24,7 @@ import {
   recordMarketSnapshot,
   recordNewsSnapshot,
 } from "@/services/changeIntelligenceService";
+import { formatMarketAssetValue, getMarketAssetPrice } from "@/services/marketFormatting";
 import type { MarketAssetQuote } from "@/services/marketService";
 import type { NewsItem } from "@/services/newsService";
 
@@ -77,7 +78,7 @@ const fallbackMeta: ApiMeta = {
   source: "mock",
 };
 
-const liveCachePrefix = "nexus-live-cache:v3:";
+const liveCachePrefix = "nexus-live-cache:v4:";
 const retryDelays = [800, 1500, 2500];
 
 export async function getMarketsData(): Promise<ApiResult<MarketsApiData>> {
@@ -298,11 +299,14 @@ function normalizeMarketAsset(asset: DashboardMarketAsset): DashboardMarketAsset
     apiAsset.sparkline,
     apiAsset.points,
   ]);
+  const price = getMarketAssetPrice(asset);
 
   return {
     ...asset,
+    ...(Number.isFinite(price) ? { price } : {}),
     series,
     seriesSource: series.length >= 2 ? asset.seriesSource : "latest-quote-only",
+    value: formatMarketAssetValue({ ...asset, ...(Number.isFinite(price) ? { price } : {}) }),
   };
 }
 
@@ -367,10 +371,12 @@ function buildNewsFallback(): NewsApiData {
 }
 
 function toQuote(asset: DashboardMarketAsset): MarketAssetQuote {
+  const price = getMarketAssetPrice(asset);
+
   return {
     symbol: asset.symbol,
     name: asset.name,
-    price: Number(asset.value.replace(/[$,]/g, "")),
+    price: Number.isFinite(price) ? price : 0,
     changePercent: asset.change,
     changeAvailable: asset.changeAvailable,
     changeSource: asset.changeSource,

@@ -79,7 +79,7 @@ function toQuote(asset) {
   return {
     symbol: asset.symbol,
     name: asset.name,
-    price: Number(asset.value.replace(/[$,]/g, "")),
+    price: getAssetPrice(asset),
     changePercent: asset.change,
     trend: asset.change > 0.05 ? "up" : asset.change < -0.05 ? "down" : "flat",
     category: asset.category,
@@ -146,6 +146,7 @@ async function buildLiveUsdInrAsset(fallbackAsset) {
     seriesSource: quote.series?.length ? quote.seriesSource : "latest-quote-only",
     source: quote.source,
     value: formatMarketValue(quote.rate, fallbackAsset.category),
+    price: quote.rate,
   };
 }
 
@@ -441,6 +442,7 @@ function toLiveAsset(fallbackAsset, proxy, quote, chart = getUnavailableChart())
     seriesSource: hasSeries ? chart.seriesSource : "latest-quote-only",
     source: `Finnhub:${proxy.proxySymbol}`,
     value: formatMarketValue(price, fallbackAsset.category),
+    price,
   };
 }
 
@@ -516,16 +518,23 @@ function getOffsetDate(date, offsetDays) {
 function formatMarketValue(value, category) {
   if (category === "FX") {
     return new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 4,
+      maximumFractionDigits: 2,
       minimumFractionDigits: 2,
     }).format(value);
   }
 
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
-    maximumFractionDigits: value >= 1000 ? 0 : 2,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
     style: "currency",
   }).format(value);
+}
+
+function getAssetPrice(asset) {
+  if (typeof asset.price === "number" && Number.isFinite(asset.price)) return asset.price;
+  const parsed = Number(String(asset.value).replace(/[₹$,]/g, "").replace(/\bINR\b/gi, "").trim());
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatCandleTime(timestamp) {

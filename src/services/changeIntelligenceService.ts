@@ -7,6 +7,7 @@ import type {
   TechSignal,
 } from "@/types/intel";
 import type { NewsItem } from "@/services/newsService";
+import { getMarketAssetPrice } from "@/services/marketFormatting";
 
 type SnapshotMeta = {
   fallback?: boolean;
@@ -480,7 +481,7 @@ function averageChange(snapshot: IntelligenceSnapshot, symbols: string[]) {
 }
 
 function parseAssetPrice(value: string) {
-  return Number(String(value).replace(/[$,]/g, ""));
+  return getMarketAssetPrice({ value });
 }
 
 function classifyTheme(title: string, category?: string) {

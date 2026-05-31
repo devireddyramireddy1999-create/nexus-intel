@@ -426,6 +426,7 @@ async function buildLiveCryptoData(livePrices, marketCharts = {}) {
       source: getProviderLabel(provider),
       trend,
       value: formatUsd(priceData.usd),
+      price: priceData.usd,
     };
   });
 
@@ -625,7 +626,7 @@ function toQuote(asset) {
   return {
     symbol: asset.symbol,
     name: asset.name,
-    price: Number(String(asset.value).replace(/[$,]/g, "")),
+    price: getAssetPrice(asset),
     changePercent: asset.change,
     changeAvailable: asset.changeAvailable,
     changeSource: asset.changeSource,
@@ -641,11 +642,20 @@ function getTrend(changePercent) {
 }
 
 function formatUsd(value) {
+  const useNoDecimals = value >= 1000;
+
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
-    maximumFractionDigits: value >= 1000 ? 0 : 2,
+    maximumFractionDigits: useNoDecimals ? 0 : 2,
+    minimumFractionDigits: useNoDecimals ? 0 : 2,
     style: "currency",
   }).format(value);
+}
+
+function getAssetPrice(asset) {
+  if (typeof asset.price === "number" && Number.isFinite(asset.price)) return asset.price;
+  const parsed = Number(String(asset.value).replace(/[₹$,]/g, "").replace(/\bINR\b/gi, "").trim());
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatSigned(value) {
