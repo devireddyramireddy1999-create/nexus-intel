@@ -4,6 +4,7 @@ import { BriefingOutput } from "@/components/dashboard/BriefingOutput";
 import { CommandBar } from "@/components/dashboard/CommandBar";
 import { DailyBriefHero } from "@/components/dashboard/DailyBriefHero";
 import { MarketSnapshot } from "@/components/dashboard/MarketSnapshot";
+import { NexusJudgmentCard } from "@/components/dashboard/NexusJudgmentCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { RiskMeter } from "@/components/dashboard/RiskMeter";
 import { SignalPanel } from "@/components/dashboard/SignalPanel";
@@ -109,6 +110,7 @@ export function DashboardPage() {
 
       <div className="grid gap-5">
         <DailyBriefHero briefing={briefing} />
+        <NexusJudgmentCard changeInsights={changeInsights} />
         <MarketSnapshot />
 
         <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[0.9fr_1.1fr]">

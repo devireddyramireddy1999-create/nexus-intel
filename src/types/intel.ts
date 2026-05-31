@@ -96,6 +96,19 @@ export type ChangeInsight = {
   text: string;
 };
 
+export type RiskPosture = "Calm" | "Watchful" | "Elevated" | "Defensive" | "Crisis";
+
+export type MarketMood = "Risk-on" | "Mixed" | "Risk-off" | "Defensive" | "Unclear";
+
+export type NexusJudgment = {
+  bestAction: string;
+  confirmationStatus: string;
+  marketMood: MarketMood;
+  riskPosture: RiskPosture;
+  watchTriggers: string[];
+  whatToIgnore: string;
+};
+
 export type GeneratedBriefing = {
   dataQuality?: string;
   mode: BriefingMode;

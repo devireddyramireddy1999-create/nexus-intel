@@ -596,7 +596,9 @@ function getThemeLabel(theme: NewsTheme) {
 }
 
 function isLowDataQuality(dataQuality: string | undefined) {
-  return typeof dataQuality === "string" && dataQuality.toLowerCase().includes("low");
+  if (typeof dataQuality !== "string") return false;
+  const normalized = dataQuality.toLowerCase();
+  return normalized.includes("low") || normalized.includes("signal quality is limited");
 }
 
 function capitalize(text: string) {

@@ -1,5 +1,6 @@
 import { techSignals } from "../data/mockData.js";
 import { getCryptoData } from "./cryptoProvider.js";
+import { buildNexusJudgment, formatNexusReadItems } from "./judgmentEngine.js";
 import { getMarkets } from "./marketProvider.js";
 import { getNews } from "./newsProvider.js";
 
@@ -36,6 +37,7 @@ const briefingMarketImpactByCategory = {
 const sectionTitles = {
   greeting: "Greeting",
   executiveSummary: "Executive Summary",
+  nexusRead: "NEXUS Read",
   worldSituation: "World Situation",
   geopoliticalRisk: "Geopolitical Risk",
   marketSnapshot: "Market Snapshot",
@@ -177,6 +179,8 @@ function buildPromptPayload(context, mode) {
   const requiredCryptoWatch = buildCryptoWatchText(context);
   const requiredMarketSnapshot = buildMarketProxySnapshotText(context);
   const tacticalWatchItems = buildTacticalActionList(context, newsItems);
+  const nexusJudgment = buildBriefingJudgment(context, newsItems);
+  const nexusReadItems = formatNexusReadItems(nexusJudgment);
 
   return {
     instruction: "Create a NEXUS Daily Briefing in structured JSON. Prioritize high-impact stories. Exclude appointment/personnel/company fluff, startup deadlines, product launches, generic PR, random funding items, and isolated human-interest stories from world/geopolitical context unless they are clearly market-moving or globally relevant.",
@@ -204,9 +208,11 @@ function buildPromptPayload(context, mode) {
       greeting: context.requiredGreeting,
       cryptoWatchMustInclude: requiredCryptoWatch,
       marketSnapshotMustInclude: requiredMarketSnapshot,
+      nexusReadMustInclude: nexusReadItems,
       personalPriorityRecommendation: personalPriorities.length > 0 ? "Use supplied personal priority data only." : NO_PERSONAL_DATA_MESSAGE,
       tacticalWatchItems,
     },
+    nexusJudgment,
     markets: marketAssets.map((asset) => ({
       symbol: asset.symbol,
       name: asset.name,
@@ -275,6 +281,7 @@ function buildPromptPayload(context, mode) {
       "Do not cite or summarize low-impact appointment/personnel news unless no higher-impact stories are available.",
       `World Situation must include only major world-relevant topics. Exclude startup deadlines, small product launches, generic company PR, random funding announcements, and isolated human-interest stories. If there is no strong world signal, write exactly: "${NO_MAJOR_WORLD_SHIFT_MESSAGE}"`,
       "The executive summary should explain what matters most, whether markets are confirming or ignoring headline risk, and what to watch next.",
+      `NEXUS Read must be a compact decision block using this deterministic judgment: ${nexusReadItems.join(" ")}`,
       "Personal Priority Recommendation must use the exact default text if personalDataPolicy.connected is false.",
       "Keep each section clear enough to render as a dashboard bullet.",
       "Action list must contain 3 to 5 tactical watch items for today, not generic productivity advice.",
@@ -299,6 +306,10 @@ const briefingJsonSchema = {
     greeting: { type: "string" },
     headline: { type: "string" },
     marketSnapshot: { type: "string" },
+    nexusRead: {
+      items: { type: "string" },
+      type: "array",
+    },
     personalPriorityRecommendation: { type: "string" },
     worldSituation: { type: "string" },
   },
@@ -306,6 +317,7 @@ const briefingJsonSchema = {
     "headline",
     "greeting",
     "executiveSummary",
+    "nexusRead",
     "worldSituation",
     "geopoliticalRisk",
     "marketSnapshot",
@@ -340,6 +352,10 @@ function validateAiBriefing(value, context) {
     throw new Error("OpenAI briefing response missing action list.");
   }
 
+  if (!Array.isArray(value.nexusRead) || !value.nexusRead.every((item) => typeof item === "string" && item.trim())) {
+    throw new Error("OpenAI briefing response missing NEXUS Read.");
+  }
+
   const feedQuality = getFeedQuality(context);
   const executiveSummary = sanitizeUserFacingText(ensureDataQualityLine(value.executiveSummary, feedQuality));
   const cryptoWatch = stripSirHonorific(mergeRequiredReadout(buildCryptoWatchText(context), value.cryptoWatch));
@@ -349,6 +365,7 @@ function validateAiBriefing(value, context) {
     ? sanitizeUserFacingText(value.personalPriorityRecommendation)
     : NO_PERSONAL_DATA_MESSAGE;
   const actionListForTheDay = buildTacticalActionList(context, value.actionListForTheDay).slice(0, 5).map(sanitizeUserFacingText);
+  const nexusRead = formatNexusReadItems(buildBriefingJudgment(context)).map(sanitizeUserFacingText);
 
   return {
     ...value,
@@ -360,6 +377,7 @@ function validateAiBriefing(value, context) {
     geopoliticalRisk: sanitizeUserFacingText(value.geopoliticalRisk),
     aiTechSignals: sanitizeUserFacingText(value.aiTechSignals),
     marketSnapshot: sanitizeUserFacingText(marketSnapshot),
+    nexusRead,
     personalPriorityRecommendation,
     worldSituation: buildWorldSituationText(context, value.worldSituation),
   };
@@ -370,6 +388,7 @@ function mapAiBriefingToUiBriefing(briefing, mode, generatedAt = new Date().toIS
   const sections = [
     { title: sectionTitles.greeting, items: [sanitizeUserFacingText(briefing.greeting)] },
     { title: sectionTitles.executiveSummary, items: [sanitizeUserFacingText(briefing.executiveSummary)] },
+    { title: sectionTitles.nexusRead, items: briefing.nexusRead.map(sanitizeUserFacingText) },
     { title: sectionTitles.worldSituation, items: [sanitizeUserFacingText(briefing.worldSituation)] },
     { title: sectionTitles.geopoliticalRisk, items: [sanitizeUserFacingText(briefing.geopoliticalRisk)] },
     { title: sectionTitles.marketSnapshot, items: [sanitizeUserFacingText(briefing.marketSnapshot)] },
@@ -403,6 +422,7 @@ function buildFallbackBriefing({ context, mode, reason }) {
   const marketStory = newsItems.find((item) => item.category === "markets") ?? topStory;
   const aiStory = newsItems.find((item) => item.category === "ai-tech") ?? topStory;
   const priority = context.personalPriorities[0];
+  const nexusRead = formatNexusReadItems(buildBriefingJudgment(context, newsItems));
   const fallback = {
     actionListForTheDay: buildTacticalActionList(context, newsItems),
     aiTechSignals: aiStory
@@ -419,6 +439,7 @@ function buildFallbackBriefing({ context, mode, reason }) {
       strongest && weakest
         ? `${buildMarketProxySnapshotText(context)} ${strongest.name} is the positive signal at ${formatSigned(strongest.change)}. ${weakest.name} is the pressure point at ${formatSigned(weakest.change)}. ${marketStory ? `${marketStory.title} (${marketStory.source}) is the highest-ranked market story. ` : ""}Proxy data remains the live market lens.`
         : "Market data is available, but no complete strongest or weakest signal was identified.",
+    nexusRead,
     personalPriorityRecommendation: priority ? `${priority.title}: ${priority.nextAction}` : NO_PERSONAL_DATA_MESSAGE,
     worldSituation: worldStory
       ? formatWorldSituationStory(worldStory)
@@ -430,6 +451,16 @@ function buildFallbackBriefing({ context, mode, reason }) {
 
 function unwrapEnvelope(envelope) {
   return envelope?.data ?? envelope;
+}
+
+function buildBriefingJudgment(context, newsItems = context.news.newsItems ?? []) {
+  return buildNexusJudgment({
+    cryptoAssets: context.crypto.assets ?? [],
+    marketAssets: context.markets.assets ?? [],
+    newsItems,
+    riskSignals: context.news.riskSignals ?? [],
+    stories: context.news.stories ?? [],
+  });
 }
 
 function isBriefingIntent(normalizedCommand) {
@@ -508,7 +539,7 @@ function buildTacticalActionList(context, newsOrActions = []) {
   const actions = [
     geoStory
       ? `Watch ${geoStory.title} (${geoStory.source}) for energy, shipping, and security spillover.`
-      : "Watch geopolitical RSS updates for sanctions, military, diplomacy, border, and energy-risk headlines.",
+      : "Watch geopolitical updates for sanctions, military, diplomacy, border, and energy-risk headlines.",
     spy && qqq
       ? `Track equity proxy direction: SPY ${spy.value} (${formatSigned(spy.change)}) and QQQ ${qqq.value} (${formatSigned(qqq.change)}).`
       : "Track SPY and QQQ proxy direction for broad risk appetite.",
@@ -520,7 +551,7 @@ function buildTacticalActionList(context, newsOrActions = []) {
       ? `Monitor ${aiStory.title} (${aiStory.source}) for AI/chip read-through.`
       : marketStory
         ? `Monitor ${marketStory.title} (${marketStory.source}) for market read-through.`
-        : "Monitor the highest-ranked live RSS headline for cross-asset read-through.",
+        : "Monitor the highest-ranked live headline for cross-asset read-through.",
   ];
 
   return actions.slice(0, 5);
