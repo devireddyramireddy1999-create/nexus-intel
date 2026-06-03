@@ -58,7 +58,7 @@ export function buildPersonalRead(context: PersonalContext, judgment: NexusJudgm
 
   const priority = context.workSchoolPriority || context.currentPrimaryProject || context.mainLifeGoal;
   const project = context.currentPrimaryProject || context.mainLifeGoal || "your highest-value project";
-  const avoid = context.thingsToAvoid || judgment.whatToIgnore;
+  const avoid = context.thingsToAvoid ? formatReadableList(context.thingsToAvoid) : judgment.whatToIgnore;
 
   return {
     priority,
@@ -75,7 +75,7 @@ export function formatPersonalCommandItems(context: PersonalContext, judgment: N
   }
 
   const priority = context.currentPrimaryProject || context.workSchoolPriority || context.mainLifeGoal;
-  const avoid = context.thingsToAvoid || judgment.whatToIgnore;
+  const avoid = context.thingsToAvoid ? formatReadableList(context.thingsToAvoid) : judgment.whatToIgnore;
 
   return [
     `Focus: ${priority}`,
@@ -86,15 +86,22 @@ export function formatPersonalCommandItems(context: PersonalContext, judgment: N
 }
 
 function buildPersonalAction(context: PersonalContext, judgment: NexusJudgment) {
+  const project = context.currentPrimaryProject || context.workSchoolPriority || context.mainLifeGoal || "your highest-value work";
+  const judgmentAction = ensureSentence(judgment.bestAction);
+
   if (judgment.riskPosture === "Crisis" || judgment.riskPosture === "Defensive") {
-    return `${judgment.bestAction} Keep ${context.financialPriority || "financial decisions"} disciplined.`;
+    if (context.financialPriority) {
+      return `${judgmentAction} Follow your financial rule: ${formatActionClause(context.financialPriority)}.`;
+    }
+
+    return `${judgmentAction} Keep financial decisions disciplined and protect the next focus block.`;
   }
 
   if (judgment.marketMood === "Mixed" || judgment.marketMood === "Unclear") {
-    return `No urgent market action. Use the session for ${context.currentPrimaryProject || context.workSchoolPriority || "focused execution"}.`;
+    return `No urgent market action. Spend one focused block on ${project}.`;
   }
 
-  return `${judgment.bestAction} Prioritize ${context.currentPrimaryProject || context.workSchoolPriority || "the main goal"}.`;
+  return `${judgmentAction} Put the next focus block into ${project}.`;
 }
 
 function buildPersonalImpact(context: PersonalContext, judgment: NexusJudgment) {
@@ -103,7 +110,7 @@ function buildPersonalImpact(context: PersonalContext, judgment: NexusJudgment) 
   }
 
   if (context.financialPriority) {
-    return `${judgment.confirmationStatus} ${context.financialPriority}`;
+    return `${ensureSentence(judgment.confirmationStatus)} Your financial rule is to ${formatActionClause(context.financialPriority)}.`;
   }
 
   return `${judgment.confirmationStatus} Treat this as directional, not a reason to overreact.`;
@@ -111,10 +118,10 @@ function buildPersonalImpact(context: PersonalContext, judgment: NexusJudgment) 
 
 function buildFocusBlock(project: string, scheduleNote: string) {
   if (/limited time|work|school|busy|class|shift/i.test(scheduleNote)) {
-    return `45 minutes on ${project} before checking more headlines.`;
+    return `45 minutes on ${project}: finish one concrete step before checking more headlines.`;
   }
 
-  return `45 minutes testing or advancing ${project}.`;
+  return `45 minutes on ${project}: pick one visible improvement and finish it.`;
 }
 
 function buildNextStep(context: PersonalContext) {
@@ -124,6 +131,47 @@ function buildNextStep(context: PersonalContext) {
   }
 
   return `Pick one measurable improvement for ${project}.`;
+}
+
+function formatReadableList(value: string) {
+  const items = splitContextItems(value).map(normalizeAvoidItem);
+  if (items.length <= 1) return `Avoid ${items[0] ?? stripSentenceEnd(value)}.`;
+  if (items.length === 2) return `Avoid ${items[0]} and ${items[1]}.`;
+
+  return `Avoid ${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}.`;
+}
+
+function formatActionClause(value: string) {
+  const text = stripSentenceEnd(splitContextItems(value).join(", "));
+  if (!text) return "stay disciplined";
+
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+function splitContextItems(value: string) {
+  const cleaned = stripSentenceEnd(value)
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s*;\s*/g, "; ")
+    .trim();
+
+  return cleaned
+    .split(/[,;\n]+/)
+    .map((item) => stripSentenceEnd(item).trim())
+    .filter(Boolean);
+}
+
+function ensureSentence(value: string) {
+  const text = value.trim();
+  if (!text) return "";
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function stripSentenceEnd(value: string) {
+  return value.trim().replace(/[.!?]+$/g, "");
+}
+
+function normalizeAvoidItem(value: string) {
+  return value.replace(/^avoid\s+/i, "").trim();
 }
 
 function normalizePersonalContext(value: unknown): PersonalContext {
