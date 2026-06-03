@@ -200,13 +200,14 @@ function InstallHint() {
 
 function MobileBottomNav({ activePage, navItems, onNavigate }: Pick<AppShellProps, "activePage" | "navItems" | "onNavigate">) {
   const mobileItems = navItems.slice(0, 5);
+  const activeMobilePage = mobileItems.some((item) => item.key === activePage) ? activePage : null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-primary/20 bg-[#030303]/96 px-2 pb-[env(safe-area-inset-bottom)] shadow-panel backdrop-blur-xl lg:hidden">
       <div className="mx-auto grid h-16 max-w-md grid-cols-5 gap-1">
         {mobileItems.map((item) => {
           const Icon = item.icon;
-          const active = item.key === activePage;
+          const active = item.key === activeMobilePage;
 
           return (
             <button
