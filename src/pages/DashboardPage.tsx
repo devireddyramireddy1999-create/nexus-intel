@@ -3,7 +3,7 @@ import { BrainCircuit, Coins, Globe2, LayoutDashboard, ShieldAlert, Target } fro
 import { BriefingOutput } from "@/components/dashboard/BriefingOutput";
 import { CommandBar } from "@/components/dashboard/CommandBar";
 import { DailyBriefHero } from "@/components/dashboard/DailyBriefHero";
-import { EndOfDayDebriefCard } from "@/components/dashboard/EndOfDayDebriefCard";
+import { CarryForwardCard, EndOfDayDebriefCard } from "@/components/dashboard/EndOfDayDebriefCard";
 import { MarketSnapshot } from "@/components/dashboard/MarketSnapshot";
 import { NexusJudgmentCard } from "@/components/dashboard/NexusJudgmentCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -113,7 +113,7 @@ export function DashboardPage() {
 
       <div className="grid gap-5">
         <section aria-label="Daily command ritual" className="grid min-w-0 gap-5">
-          <div className={hasBriefing ? "order-6 min-w-0 sm:order-1" : "order-1 min-w-0"}>
+          <div className={hasBriefing ? "order-7 min-w-0 sm:order-1" : "order-1 min-w-0"}>
             <CommandBar
               hasBriefing={hasBriefing}
               mode={mode}
@@ -164,6 +164,9 @@ export function DashboardPage() {
             <PersonalReadCard changeInsights={changeInsights} />
           </div>
           <div className={hasBriefing ? "order-5 min-w-0 sm:order-6" : "order-6 min-w-0"}>
+            <CarryForwardCard />
+          </div>
+          <div className={hasBriefing ? "order-6 min-w-0 sm:order-7" : "order-7 min-w-0"}>
             <EndOfDayDebriefCard />
           </div>
         </section>

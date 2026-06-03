@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Moon, RotateCcw, Save } from "lucide-react";
+import { ArrowRight, CheckCircle2, Moon, RotateCcw, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,44 @@ type SavedDebrief = {
 };
 
 const debriefStoragePrefix = "nexus-intel-end-of-day-debrief";
+const debriefUpdatedEvent = "nexus-intel-end-of-day-debrief-updated";
 const statusOptions: DebriefStatus[] = ["Followed today's action", "Partially followed", "Missed / distracted"];
+
+export function CarryForwardCard() {
+  const [carryForward, setCarryForward] = useState(() => readLatestCarryForward());
+
+  useEffect(() => {
+    const handleDebriefUpdate = () => setCarryForward(readLatestCarryForward());
+
+    window.addEventListener(debriefUpdatedEvent, handleDebriefUpdate);
+    window.addEventListener("storage", handleDebriefUpdate);
+    return () => {
+      window.removeEventListener(debriefUpdatedEvent, handleDebriefUpdate);
+      window.removeEventListener("storage", handleDebriefUpdate);
+    };
+  }, []);
+
+  if (!carryForward) return null;
+
+  return (
+    <Card className="border-primary/[0.16] bg-[#080808]/80">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.22em] text-nexus-champagne sm:tracking-[0.26em]">
+              <ArrowRight className="size-4" />
+              Carry Forward
+            </div>
+            <p className="break-words text-sm font-semibold leading-6 text-foreground sm:text-base">{carryForward.text}</p>
+          </div>
+          <Badge variant="secondary" className="w-fit shrink-0">
+            From last debrief
+          </Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function EndOfDayDebriefCard() {
   const todayKey = useMemo(() => getLocalDateKey(), []);
@@ -46,6 +83,7 @@ export function EndOfDayDebriefCard() {
 
     window.localStorage.setItem(storageKey, JSON.stringify(nextDebrief));
     setSavedDebrief(nextDebrief);
+    notifyDebriefUpdate();
   };
 
   const handleClear = () => {
@@ -54,6 +92,7 @@ export function EndOfDayDebriefCard() {
     setDistractedBy("");
     setCarryForward("");
     setSavedDebrief(null);
+    notifyDebriefUpdate();
   };
 
   return (
@@ -175,6 +214,35 @@ function readDebrief(key: string): SavedDebrief | null {
   }
 }
 
+function readLatestCarryForward() {
+  if (typeof window === "undefined") return null;
+
+  const entries = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(`${debriefStoragePrefix}:`)))
+    .map((key) => {
+      const debrief = readDebrief(key);
+      const dateKey = key.replace(`${debriefStoragePrefix}:`, "");
+      return {
+        dateKey,
+        debrief,
+      };
+    })
+    .filter((entry): entry is { dateKey: string; debrief: SavedDebrief } => Boolean(entry.debrief?.carryForward.trim()))
+    .sort((a, b) => {
+      const dateCompare = b.dateKey.localeCompare(a.dateKey);
+      if (dateCompare !== 0) return dateCompare;
+      return Date.parse(b.debrief.savedAt) - Date.parse(a.debrief.savedAt);
+    });
+
+  const latest = entries[0];
+  if (!latest) return null;
+
+  return {
+    dateKey: latest.dateKey,
+    text: latest.debrief.carryForward.trim(),
+  };
+}
+
 function isDebriefStatus(value: unknown): value is DebriefStatus {
   return typeof value === "string" && statusOptions.includes(value as DebriefStatus);
 }
@@ -185,4 +253,8 @@ function getLocalDateKey(date = new Date()) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function notifyDebriefUpdate() {
+  window.dispatchEvent(new CustomEvent(debriefUpdatedEvent));
 }
