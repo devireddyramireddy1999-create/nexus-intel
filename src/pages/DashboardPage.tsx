@@ -97,29 +97,64 @@ export function DashboardPage() {
     }
   };
 
+  const topChangeInsights = changeInsights.slice(0, 3);
+
   return (
     <>
       <PageHeader
         eyebrow="NEXUS Intel"
-        title="Personal Intelligence Dashboard"
-        description="A daily command center for world news, geopolitics, markets, crypto, AI/tech, and priority execution."
+        title="Daily Command Brief"
+        description="What changed, what matters, and what to do next."
         icon={LayoutDashboard}
         badge="PWA ready"
       />
-      <CommandBar
-        hasBriefing={Boolean(briefing)}
-        mode={mode}
-        onGenerateMorning={handleGenerateMorningBrief}
-        onModeChange={setMode}
-        onRefreshBrief={handleRefresh}
-        onSubmit={handleCommand}
-        isLoading={isGenerating}
-      />
 
       <div className="grid gap-5">
-        <DailyBriefHero briefing={briefing} />
-        <NexusJudgmentCard changeInsights={changeInsights} />
-        <PersonalReadCard changeInsights={changeInsights} />
+        <section aria-label="Daily command ritual" className="grid min-w-0 gap-5">
+          <CommandBar
+            hasBriefing={Boolean(briefing)}
+            mode={mode}
+            onGenerateMorning={handleGenerateMorningBrief}
+            onModeChange={setMode}
+            onRefreshBrief={handleRefresh}
+            onSubmit={handleCommand}
+            isLoading={isGenerating}
+          />
+          <DailyBriefHero briefing={briefing} mode={mode} />
+          <div className="glass-card min-w-0 rounded-lg p-4 sm:p-5">
+            <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="break-words text-xs font-semibold uppercase tracking-[0.22em] text-nexus-champagne sm:tracking-[0.26em]">
+                  What Changed
+                </p>
+                <h2 className="mt-1 break-words text-lg font-semibold text-foreground">Latest movement since the last snapshot</h2>
+              </div>
+              <span className="shrink-0 rounded-md border border-primary/[0.18] bg-[#0a0a0a]/75 px-3 py-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Top signals
+              </span>
+            </div>
+            {topChangeInsights.length ? (
+              <ul className="grid min-w-0 gap-2 lg:grid-cols-3">
+                {topChangeInsights.map((insight) => (
+                  <li
+                    key={`${insight.classification}-${insight.text}`}
+                    className="min-w-0 rounded-md border border-primary/[0.14] bg-[#0a0a0a]/75 p-3 text-sm leading-6 text-foreground"
+                  >
+                    <p className="mb-1 break-words text-xs font-semibold uppercase tracking-[0.16em] text-primary">{insight.classification}</p>
+                    <p className="min-w-0 break-words text-muted-foreground">{insight.text}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="break-words text-sm leading-6 text-muted-foreground">
+                Warming the comparison layer. NEXUS will summarize meaningful changes after the first live snapshot.
+              </p>
+            )}
+          </div>
+          <NexusJudgmentCard changeInsights={changeInsights} />
+          <PersonalReadCard changeInsights={changeInsights} />
+        </section>
+
         <SmartAlertsCard changeInsights={changeInsights} />
         <MarketSnapshot />
 
