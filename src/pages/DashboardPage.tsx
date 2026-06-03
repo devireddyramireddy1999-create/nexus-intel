@@ -97,7 +97,7 @@ export function DashboardPage() {
     }
   };
 
-  const topChangeInsights = changeInsights.slice(0, 3);
+  const topChangeInsights = selectCommandBriefInsights(changeInsights);
   const hasBriefing = Boolean(briefing);
 
   return (
@@ -145,7 +145,7 @@ export function DashboardPage() {
                     key={`${insight.classification}-${insight.text}`}
                     className="min-w-0 rounded-md border border-primary/[0.14] bg-[#0a0a0a]/75 p-3 text-sm leading-6 text-foreground"
                   >
-                    <p className="mb-1 break-words text-xs font-semibold uppercase tracking-[0.16em] text-primary">{insight.classification}</p>
+                    <p className="mb-1 break-words text-xs font-semibold uppercase tracking-[0.16em] text-primary">{insight.label}</p>
                     <p className="min-w-0 break-words text-muted-foreground">{insight.text}</p>
                   </li>
                 ))}
@@ -212,6 +212,99 @@ export function DashboardPage() {
       </div>
     </>
   );
+}
+
+type CommandBriefInsight = ChangeInsight & {
+  label: string;
+};
+
+function selectCommandBriefInsights(insights: ChangeInsight[]): CommandBriefInsight[] {
+  const ranked = insights
+    .map((insight, index) => ({
+      ...formatCommandBriefInsight(insight),
+      score: scoreChangeInsight(insight) - index * 0.01,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const useful = ranked.filter((insight) => !isLowValueChangeInsight(insight));
+  const selected = uniqueChangeInsights(useful.length ? useful : ranked);
+
+  return selected.slice(0, 3).map(({ score: _score, ...insight }) => insight);
+}
+
+function formatCommandBriefInsight(insight: ChangeInsight): CommandBriefInsight {
+  return {
+    ...insight,
+    label: getCommandBriefLabel(insight),
+    text: sharpenChangeInsightText(insight.text),
+  };
+}
+
+function scoreChangeInsight(insight: ChangeInsight) {
+  let score = 0;
+
+  if (insight.classification === "Worsened") score += 100;
+  if (insight.classification === "Improved") score += 95;
+  if (insight.classification === "Repeated theme") score += 90;
+  if (insight.classification === "New") score += 80;
+  if (insight.classification === "Unchanged") score += 45;
+
+  if (isMarketConfirmationInsight(insight.text)) score += 28;
+  if (isRiskSignalInsight(insight.text)) score += 22;
+  if (isLowValueChangeInsight(insight)) score -= 80;
+
+  return score;
+}
+
+function getCommandBriefLabel(insight: ChangeInsight) {
+  if (isMarketConfirmationInsight(insight.text)) return "Market confirmation";
+  if (isRiskSignalInsight(insight.text)) return "Risk signal";
+  if (insight.classification === "Repeated theme") return "Repeated theme";
+  return insight.classification;
+}
+
+function sharpenChangeInsightText(text: string) {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+
+  if (/^crypto improved; confirm btc and eth before adding risk\.?$/i.test(cleaned)) {
+    return "Crypto improved, but wait for BTC/ETH confirmation before adding risk.";
+  }
+
+  if (/^no dominant repeated theme yet\.?$/i.test(cleaned)) {
+    return "No dominant repeated theme yet; treat headline noise as background until price action confirms.";
+  }
+
+  if (/^nexus will compare the next refresh against this state\.?$/i.test(cleaned)) {
+    return "Baseline is set; the next refresh will show what materially changed.";
+  }
+
+  return cleaned;
+}
+
+function isMarketConfirmationInsight(text: string) {
+  return /\b(market confirmation|not confirming|price confirmation|price action|risk appetite|equities|spy|qqq|btc|eth|crypto|oil|gold)\b/i.test(text);
+}
+
+function isRiskSignalInsight(text: string) {
+  return /\b(risk rose|risk eased|risk is|signal quality|directional|geopolitical|usd\/inr|dollar pressure|safe-haven)\b/i.test(text);
+}
+
+function isLowValueChangeInsight(insight: Pick<ChangeInsight, "classification" | "text">) {
+  const text = insight.text.toLowerCase();
+  if (/no dominant repeated theme yet/.test(text)) return true;
+  if (/nexus will compare the next refresh/.test(text)) return true;
+  if (insight.classification === "Unchanged" && /saved for the next comparison|current market, crypto, risk/.test(text)) return true;
+  return false;
+}
+
+function uniqueChangeInsights<T extends Pick<ChangeInsight, "classification" | "text">>(insights: T[]) {
+  const seen = new Set<string>();
+  return insights.filter((insight) => {
+    const key = `${insight.classification}:${insight.text}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function normalizeCommand(command: string) {
