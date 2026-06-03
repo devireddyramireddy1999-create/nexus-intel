@@ -32,6 +32,7 @@ export function NexusJudgmentCard({ changeInsights = [] }: NexusJudgmentCardProp
     () => buildNexusJudgment({ ...inputs, changeInsights }),
     [changeInsights, inputs],
   );
+  const reasonCodes = useMemo(() => buildJudgmentReasons(inputs, changeInsights), [changeInsights, inputs]);
 
   useEffect(() => {
     let active = true;
@@ -102,6 +103,19 @@ export function NexusJudgmentCard({ changeInsights = [] }: NexusJudgmentCardProp
             </div>
           </div>
         </div>
+        <div className="mt-4 min-w-0 rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/60 p-3">
+          <div className="mb-2 flex min-w-0 items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            <BrainCircuit className="size-4 text-nexus-champagne" />
+            Why this judgment
+          </div>
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {reasonCodes.map((reason) => (
+              <Badge key={reason} variant="secondary" className="whitespace-normal">
+                {reason}
+              </Badge>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -149,4 +163,72 @@ function getPostureBadgeVariant(judgment: NexusJudgment) {
   if (judgment.riskPosture === "Elevated") return "warning";
   if (judgment.riskPosture === "Calm") return "success";
   return "default";
+}
+
+function buildJudgmentReasons(inputs: JudgmentInputs, changeInsights: ChangeInsight[]) {
+  const assets = mergeAssets(inputs.marketAssets, inputs.cryptoAssets);
+  const reasons: string[] = [];
+  const equities = averageChange(assets, ["SPX", "NDX"]);
+  const crypto = averageChange(assets, ["BTC", "ETH", "SOL"]);
+  const btcEth = averageChange(assets, ["BTC", "ETH"]);
+  const oil = getChange(assets, "WTI");
+  const gold = getChange(assets, "XAU");
+  const riskScore = inputs.riskSignals.find((signal) => /global/i.test(signal.label))?.value ?? inputs.riskSignals[0]?.value;
+  const repeatedTheme =
+    changeInsights.some((insight) => insight.classification === "Repeated theme") ||
+    inputs.stories.some((story) => (story.sourceCount ?? story.coveredBy?.length ?? 1) >= 3);
+
+  if (isNegative(btcEth, -0.35) || isNegative(crypto, -0.35)) reasons.push("BTC/ETH weakness");
+  if (isNegative(equities, -0.2)) reasons.push("SPY/QQQ softness");
+  if (isPositive(oil, 0.6)) reasons.push("Oil strength adds macro pressure");
+  if (isPositive(gold, 0.3) && !isPositive(equities, 0.15)) reasons.push("Gold/equity split suggests caution");
+  if (hasRiskHeadline(inputs.stories) || isAtLeast(riskScore, 60)) reasons.push("Geopolitical headlines elevated");
+  if (repeatedTheme) reasons.push("Repeated theme across sources");
+  if (!reasons.length && Number.isFinite(equities) && Number.isFinite(crypto)) reasons.push("Cross-asset signals are mixed");
+
+  return uniqueValues(reasons).slice(0, 4).length ? uniqueValues(reasons).slice(0, 4) : ["Based on available market and brief signals"];
+}
+
+function mergeAssets(marketAssets: MarketAsset[], cryptoAssets: MarketAsset[]) {
+  const assetsBySymbol = new Map<string, MarketAsset>();
+
+  for (const asset of marketAssets) assetsBySymbol.set(asset.symbol, asset);
+  for (const asset of cryptoAssets) assetsBySymbol.set(asset.symbol, asset);
+
+  return [...assetsBySymbol.values()];
+}
+
+function averageChange(assets: MarketAsset[], symbols: string[]) {
+  const values = symbols.map((symbol) => getChange(assets, symbol)).filter(Number.isFinite);
+  if (!values.length) return Number.NaN;
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getChange(assets: MarketAsset[], symbol: string) {
+  const value = assets.find((asset) => asset.symbol === symbol)?.change;
+  return typeof value === "number" && Number.isFinite(value) ? value : Number.NaN;
+}
+
+function hasRiskHeadline(stories: IntelligenceStory[]) {
+  return stories.some((story) => {
+    const text = `${story.section} ${story.title} ${story.summary} ${story.impact}`.toLowerCase();
+    return /\b(war|conflict|sanction|military|oil|shipping|security|iran|hormuz|russia|ukraine|inflation|rates|central bank)\b/.test(text);
+  });
+}
+
+function isAtLeast(value: number | undefined, threshold: number) {
+  return typeof value === "number" && Number.isFinite(value) && value >= threshold;
+}
+
+function isPositive(value: number, threshold: number) {
+  return Number.isFinite(value) && value > threshold;
+}
+
+function isNegative(value: number, threshold: number) {
+  return Number.isFinite(value) && value < threshold;
+}
+
+function uniqueValues(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }
