@@ -117,11 +117,13 @@ function buildPersonalImpact(context: PersonalContext, judgment: NexusJudgment) 
 }
 
 function buildFocusBlock(project: string, scheduleNote: string) {
+  const focus = buildFocusPhrase(project);
+
   if (/limited time|work|school|busy|class|shift/i.test(scheduleNote)) {
-    return `45 minutes on ${project}: finish one concrete step before checking more headlines.`;
+    return `45 minutes: ${focus}. Do not check headlines until one concrete step is finished.`;
   }
 
-  return `45 minutes on ${project}: pick one visible improvement and finish it.`;
+  return `45 minutes: ${focus}. Finish one visible improvement.`;
 }
 
 function buildNextStep(context: PersonalContext) {
@@ -134,8 +136,9 @@ function buildNextStep(context: PersonalContext) {
 }
 
 function formatReadableList(value: string) {
-  const items = splitContextItems(value).map(normalizeAvoidItem);
-  if (items.length <= 1) return `Avoid ${items[0] ?? stripSentenceEnd(value)}.`;
+  const items = splitContextItems(value).map(normalizeAvoidItem).filter(Boolean);
+  if (!items.length) return "Avoid running the day from headlines alone.";
+  if (items.length === 1) return `Avoid ${items[0]}.`;
   if (items.length === 2) return `Avoid ${items[0]} and ${items[1]}.`;
 
   return `Avoid ${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}.`;
@@ -171,7 +174,27 @@ function stripSentenceEnd(value: string) {
 }
 
 function normalizeAvoidItem(value: string) {
-  return value.replace(/^avoid\s+/i, "").trim();
+  return value
+    .replace(/\b(and|or)\s+\1\b/gi, "$1")
+    .replace(/^avoid\s+/i, "")
+    .replace(/^(and|or)\s+/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .trim();
+}
+
+function buildFocusPhrase(project: string) {
+  const text = stripSentenceEnd(project).replace(/\s+/g, " ").trim();
+  if (!text) return "advance one priority detail";
+
+  const nexusMatch = text.match(/\bNEXUS\b/i);
+  if (nexusMatch) {
+    if (/mobile|command brief|brief/i.test(text)) return "improve one NEXUS command brief detail";
+    return "advance one NEXUS decision-intelligence detail";
+  }
+
+  const words = text.split(" ").slice(0, 6).join(" ");
+  return `advance one ${words} detail`;
 }
 
 function normalizePersonalContext(value: unknown): PersonalContext {
