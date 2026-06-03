@@ -98,6 +98,7 @@ export function DashboardPage() {
   };
 
   const topChangeInsights = changeInsights.slice(0, 3);
+  const hasBriefing = Boolean(briefing);
 
   return (
     <>
@@ -111,17 +112,21 @@ export function DashboardPage() {
 
       <div className="grid gap-5">
         <section aria-label="Daily command ritual" className="grid min-w-0 gap-5">
-          <CommandBar
-            hasBriefing={Boolean(briefing)}
-            mode={mode}
-            onGenerateMorning={handleGenerateMorningBrief}
-            onModeChange={setMode}
-            onRefreshBrief={handleRefresh}
-            onSubmit={handleCommand}
-            isLoading={isGenerating}
-          />
-          <DailyBriefHero briefing={briefing} mode={mode} />
-          <div className="glass-card min-w-0 rounded-lg p-4 sm:p-5">
+          <div className={hasBriefing ? "order-5 min-w-0 sm:order-1" : "order-1 min-w-0"}>
+            <CommandBar
+              hasBriefing={hasBriefing}
+              mode={mode}
+              onGenerateMorning={handleGenerateMorningBrief}
+              onModeChange={setMode}
+              onRefreshBrief={handleRefresh}
+              onSubmit={handleCommand}
+              isLoading={isGenerating}
+            />
+          </div>
+          <div className={hasBriefing ? "order-1 min-w-0 sm:order-2" : "order-2 min-w-0"}>
+            <DailyBriefHero briefing={briefing} mode={mode} />
+          </div>
+          <div className={hasBriefing ? "glass-card order-2 min-w-0 rounded-lg p-4 sm:order-3 sm:p-5" : "glass-card order-3 min-w-0 rounded-lg p-4 sm:p-5"}>
             <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="break-words text-xs font-semibold uppercase tracking-[0.22em] text-nexus-champagne sm:tracking-[0.26em]">
@@ -151,8 +156,12 @@ export function DashboardPage() {
               </p>
             )}
           </div>
-          <NexusJudgmentCard changeInsights={changeInsights} />
-          <PersonalReadCard changeInsights={changeInsights} />
+          <div className={hasBriefing ? "order-3 min-w-0 sm:order-4" : "order-4 min-w-0"}>
+            <NexusJudgmentCard changeInsights={changeInsights} />
+          </div>
+          <div className={hasBriefing ? "order-4 min-w-0 sm:order-5" : "order-5 min-w-0"}>
+            <PersonalReadCard changeInsights={changeInsights} />
+          </div>
         </section>
 
         <SmartAlertsCard changeInsights={changeInsights} />

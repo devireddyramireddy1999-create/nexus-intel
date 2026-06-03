@@ -26,7 +26,7 @@ export function PageHeader({ eyebrow, title, description, icon: Icon, badge }: P
         <h1 className="break-words text-2xl font-semibold tracking-normal text-foreground sm:text-4xl">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">{description}</p>
       </div>
-      {badge ? <Badge>{badge}</Badge> : null}
+      {badge ? <Badge className="hidden sm:inline-flex">{badge}</Badge> : null}
     </motion.div>
   );
 }
