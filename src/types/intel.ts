@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-export type PageKey = "dashboard" | "markets" | "geopolitics" | "crypto" | "ai-tech" | "priorities" | "settings";
+export type PageKey = "dashboard" | "markets" | "geopolitics" | "crypto" | "ai-tech" | "priorities" | "reports" | "settings";
 
 export type NavItem = {
   key: PageKey;

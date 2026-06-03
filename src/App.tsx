@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, BrainCircuit, ChartCandlestick, Globe2, Home, Landmark, Settings, Target } from "lucide-react";
+import { Activity, BarChart3, BrainCircuit, ChartCandlestick, Globe2, Home, Landmark, Settings, Target } from "lucide-react";
 import { AccessGate } from "@/components/auth/AccessGate";
 import { AppShell } from "@/components/layout/AppShell";
 import { AITechPage } from "@/pages/AITechPage";
@@ -8,6 +8,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { GeopoliticsPage } from "@/pages/GeopoliticsPage";
 import { MarketsPage } from "@/pages/MarketsPage";
 import { PrioritiesPage } from "@/pages/PrioritiesPage";
+import { ReportsPage } from "@/pages/ReportsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import type { NavItem, PageKey } from "@/types/intel";
 
@@ -18,6 +19,7 @@ const navItems: NavItem[] = [
   { key: "crypto", label: "Crypto", icon: Activity },
   { key: "ai-tech", label: "AI & Tech", icon: BrainCircuit },
   { key: "priorities", label: "Priorities", icon: Target },
+  { key: "reports", label: "Reports", icon: BarChart3 },
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -36,6 +38,8 @@ function App() {
         return <AITechPage />;
       case "priorities":
         return <PrioritiesPage />;
+      case "reports":
+        return <ReportsPage />;
       case "settings":
         return <SettingsPage />;
       case "dashboard":
