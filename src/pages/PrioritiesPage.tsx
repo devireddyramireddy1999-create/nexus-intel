@@ -10,10 +10,10 @@ export function PrioritiesPage() {
     <>
       <PageHeader
         eyebrow="Personal Priorities"
-        title="Execution Stack"
-        description="Focus, next action, energy demand, and timing pulled into a calm operating layer for the day."
+        title="Sample Execution Stack"
+        description="Sample local priority cards for layout reference. Personal Read uses saved context for the daily command."
         icon={Target}
-        badge="3 active"
+        badge="Sample"
       />
       <div className="grid gap-5 lg:grid-cols-3">
         {priorities.map((priority) => (
@@ -53,7 +53,7 @@ export function PrioritiesPage() {
 
       <Card className="mt-5">
         <CardHeader>
-          <CardTitle>Today’s Operating Rhythm</CardTitle>
+          <CardTitle>Sample Operating Rhythm</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-4">
           {["Deep work", "Market check", "Memo draft", "Evening review"].map((item, index) => (

@@ -72,15 +72,20 @@ export function SignalPanel({ title, eyebrow, icon: Icon, variant }: SignalPanel
             </div>
             <CardTitle className="break-words">{title}</CardTitle>
           </div>
-          <Badge variant={meta?.fallback ? "warning" : "secondary"}>
-            {loading ? (meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...") : meta?.fallback ? "Live feeds unavailable — fallback mode" : variant}
-          </Badge>
+          <Badge variant={meta?.fallback ? "warning" : "secondary"}>{getSignalPanelBadge({ loading, meta, variant })}</Badge>
         </div>
       </CardHeader>
       {meta?.error ? <p className="px-5 pb-3 text-xs text-nexus-ember">Live feed unavailable after retries. Showing fallback mode.</p> : null}
       <CardContent>{renderPanel(variant, { cryptoItems, geoItems, loading, techItems })}</CardContent>
     </Card>
   );
+}
+
+function getSignalPanelBadge({ loading, meta, variant }: { loading: boolean; meta: ApiMeta | null; variant: SignalPanelProps["variant"] }) {
+  if (variant === "priority") return "Sample";
+  if (loading) return meta?.stale ? "Last live snapshot — refreshing..." : "Loading live intelligence...";
+  if (meta?.fallback) return "Live feeds unavailable — fallback mode";
+  return variant;
 }
 
 function renderPanel(
@@ -145,6 +150,7 @@ function renderPanel(
 
   return (
     <div className="space-y-3">
+      <p className="text-xs leading-5 text-muted-foreground">Sample priorities are shown here. Personal Read uses saved context for today's command.</p>
       {priorities.map((item) => (
         <div key={item.title} className="rounded-lg border border-primary/[0.14] bg-[#0a0a0a]/75 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">

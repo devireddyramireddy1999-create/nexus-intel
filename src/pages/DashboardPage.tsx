@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrainCircuit, Coins, Globe2, LayoutDashboard, ShieldAlert, Target } from "lucide-react";
+import { BrainCircuit, Coins, Globe2, LayoutDashboard, Target } from "lucide-react";
 import { BriefingOutput } from "@/components/dashboard/BriefingOutput";
 import { CommandBar } from "@/components/dashboard/CommandBar";
 import { DailyBriefHero } from "@/components/dashboard/DailyBriefHero";
@@ -197,7 +197,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <SignalPanel title="Personal Priority Panel" eyebrow="Execution" icon={Target} variant="priority" />
+        <SignalPanel title="Sample Priority Stack" eyebrow="Local Priorities" icon={Target} variant="priority" />
 
         <BriefingOutput
           briefing={briefing}
@@ -210,12 +210,6 @@ export function DashboardPage() {
           onCopy={handleCopyBrief}
           onRefresh={handleRefresh}
         />
-
-        <div className="grid min-w-0 gap-5 lg:grid-cols-3">
-          <MiniStatus label="Global posture" value="Elevated" icon={ShieldAlert} />
-          <MiniStatus label="Briefing mode" value={mode === "deep" ? "Deep Dive" : mode === "quick" ? "Quick" : "Standard"} icon={LayoutDashboard} />
-          <MiniStatus label="Priority load" value="3 active" icon={Target} />
-        </div>
       </div>
     </>
   );
@@ -373,16 +367,4 @@ function formatBriefingForClipboard(briefing: GeneratedBriefing, changeInsights:
   ]
     .filter(Boolean)
     .join("\n\n");
-}
-
-function MiniStatus({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
-  return (
-    <div className="glass-card min-w-0 rounded-lg p-4">
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <p className="min-w-0 break-words text-xs uppercase tracking-[0.2em] text-muted-foreground sm:tracking-[0.24em]">{label}</p>
-        <Icon className="size-4 text-nexus-champagne" />
-      </div>
-      <p className="mt-3 break-words text-2xl font-semibold text-foreground">{value}</p>
-    </div>
-  );
 }
